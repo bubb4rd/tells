@@ -11,10 +11,10 @@
 
 <p align="center">
   <a href="https://github.com/bubb4rd/tells/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/bubb4rd/tells/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Node 20+" src="https://img.shields.io/badge/Node-20%2B-0a0a0a?logo=nodedotjs&logoColor=white">
-  <img alt="No dependencies" src="https://img.shields.io/badge/Dependencies-0-0a0a0a">
-  <a href="#claude-code"><img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude_Code-plugin-0a0a0a?logo=claude&logoColor=white"></a>
-  <a href="#license"><img alt="License: MIT and CC BY 4.0" src="https://img.shields.io/badge/License-MIT_%C2%B7_CC_BY_4.0-c8321e"></a>
+  <img alt="Node 20+" src="docs/assets/badges/node.svg">
+  <img alt="No dependencies" src="docs/assets/badges/dependencies.svg">
+  <a href="#claude-code"><img alt="Claude Code plugin" src="docs/assets/badges/claude-code.svg"></a>
+  <a href="#license"><img alt="License: MIT and CC BY 4.0" src="docs/assets/badges/license.svg"></a>
 </p>
 
 <p align="center">Find the marks that give a screen away as default, AI-generated output, and fix the ones that have one right answer.</p>
