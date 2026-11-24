@@ -1,0 +1,2 @@
+/* A tide-table app: chart navy, buoy yellow, the almanac's own mono figures. */
+:root { --bg: #102a43; --ink: #f0f4f8; --line: #243b53; --buoy: #f0b429; --tide: #2cb1bc; --radius: 4px; --font-body: "Overpass Mono", monospace; }

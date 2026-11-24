@@ -127,7 +127,7 @@ Put the system in its own folder. Name it after what it's for, not "Adjective + 
 ## Phase 5: Look, cut, repeat (at least 2 rounds)
 
 1. **Screenshot** every screen with headless Chrome at 1440×900, 1280×800 and 390×844. Save them to `shots/round-N/`. Open them and look.
-2. **Run `tells fix <system> --strict` and `tells render <system>/screens`.** `fix` clears the hits with one right answer. Remove every other hit, or keep it with a `tells-ok: <rule-id> <reason>` comment and list it in `DESIGN.md`. A round passes only when both exit 0.
+2. **Run `tells fix <system> --strict`, `tells render <system>/screens` and `tells same <system> --against <your other systems>`.** `fix` clears the hits with one right answer. Remove every other hit, or keep it with a `tells-ok: <rule-id> <reason>` comment and list it in `DESIGN.md`. A round passes only when both exit 0.
 3. **Answer in `critique.md`, per round:**
    - Cover the logo. Could this be any other product?
    - Put it next to the last system you built. Could it be its sibling? If so, which print-brief line failed to make it different?

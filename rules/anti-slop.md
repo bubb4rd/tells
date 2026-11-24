@@ -16,6 +16,7 @@ An item comes back only if it passes the removal test: *take it out. Does the re
 
 - `` `check:<id>` `` is caught by `tells check`, the static linter.
 - `` `render:<id>` `` is caught by `tells render`, the rendered audit in headless Chrome.
+- `` `same:<id>` `` is caught by `tells same`, which compares a design's tokens with the cliché clusters and with your other designs.
 - **(judgment)** means no tool catches it. A person has to look.
 
 ---
@@ -49,14 +50,14 @@ What a cluster bans is the whole default package, not its parts. Clusters 1 and 
 
 | # | Cluster | Typical premium name it ships under |
 |---|---|---|
-| 1 | Warm cream/bone paper (~`#F4F1EA`) + high-contrast serif + terracotta/vermilion accent | "Kintsugi Editorial" |
-| 2 | Near-black (`#0B0B0B`/`#111`) + one acid accent (cyan, green, vermilion), hairline borders | "Obsidian Telemetry" |
-| 3 | Broadsheet / neo-Swiss: hairline rules, zero radius, exposed grid, condensed grotesk, red + blue | "Helvetia Kinetic" |
-| 4 | Dark void + glass + glow, violet/coral washes, pointer sheen | "Lumina Prism" |
-| 5 | Soft commerce: putty/beige + forest green or emerald + brass, pill buttons, italic serif notes | "Verdigris Atelier" |
-| 6 | **Your own house style.** The look your generator drifts to once the first five are banned. In our runs it was a white or `#f6f7f9` page, `#e5e7ed` hairlines, `#0d1117` ink, one saturated accent, a neutral grotesk and 14–20px cards. Yours will differ. Find it by comparing the tokens of your last few systems | Whatever won last time |
+| 1 | Warm cream/bone paper (~`#F4F1EA`) + high-contrast serif + terracotta/vermilion accent. `same:cluster-warm-paper` | "Kintsugi Editorial" |
+| 2 | Near-black (`#0B0B0B`/`#111`) + one acid accent (cyan, green, vermilion), hairline borders. `same:cluster-acid-dark` | "Obsidian Telemetry" |
+| 3 | Broadsheet / neo-Swiss: hairline rules, zero radius, exposed grid, condensed grotesk, red + blue. `same:cluster-neo-swiss` | "Helvetia Kinetic" |
+| 4 | Dark void + glass + glow, violet/coral washes, pointer sheen. `same:cluster-glow-void` | "Lumina Prism" |
+| 5 | Soft commerce: putty/beige + forest green or emerald + brass, pill buttons, italic serif notes. `same:cluster-soft-commerce` | "Verdigris Atelier" |
+| 6 | **Your own house style.** The look your generator drifts to once the first five are banned. In our runs it was a white or `#f6f7f9` page, `#e5e7ed` hairlines, `#0d1117` ink, one saturated accent, a neutral grotesk and 14–20px cards. Yours will differ. `tells same` finds it from the tokens of your other systems. `same:house-style` | Whatever won last time |
 
-Cluster 6 isn't wrong for the subject where it was first tested and won. It's wrong as the starting point for every other subject. If a new system shares most of its tokens with a sibling, write down why this subject earns the look, or derive a new one. (judgment)
+Cluster 6 isn't wrong for the subject where it was first tested and won. It's wrong as the starting point for every other subject. If a new system shares most of its tokens with a sibling, write down why this subject earns the look, or derive a new one. `same:house-style` `same:token-copy`
 
 Also out: purple to blue gradients, and an accent rainbow (a new colour per badge with no shared meaning). `check:purple-default` `check:gradient-count`; the rainbow is judgment.
 

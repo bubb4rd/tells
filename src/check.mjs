@@ -89,7 +89,7 @@ function parseArgs(argv) {
     if (arg.startsWith("--")) {
       const [k, ...rest] = arg.slice(2).split("=");
       if (rest.length) flags[k] = rest.join("=");
-      else if ((k === "rule" || k === "radius") && argv[i + 1] && !argv[i + 1].startsWith("--")) flags[k] = argv[++i];
+      else if ((k === "rule" || k === "radius" || k === "house" || k === "against") && argv[i + 1] && !argv[i + 1].startsWith("--")) flags[k] = argv[++i];
       else flags[k] = true;
     } else {
       positional.push(arg);

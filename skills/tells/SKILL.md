@@ -15,15 +15,18 @@ For a new design system, follow `TELLS/playbook/design-system.md`.
 
 ## After you build
 
-Fix the mechanical hits, then run both linters on what you changed and fix every error before you call the work done:
+Fix the mechanical hits, then run the checks on what you changed and fix every error before you call the work done:
 
 ```sh
 node TELLS/bin/tells.mjs fix <paths>
 node TELLS/bin/tells.mjs render <html files or http URLs>
+node TELLS/bin/tells.mjs same <design folder> --against <your other designs>
 ```
 
 - `fix` rewrites the hits that have one right answer (`transition: all`, pills, bounce easing, arrow suffixes, a missing reduced-motion guard, placeholder names), then prints the same report as `check` for what's left. Everything left needs a decision from the subject. Make it yourself; don't stop to ask.
-- `check` reads source (HTML, CSS, JSX, TSX, MDX). It's the same report without the rewrites. `render` loads pages in headless Chrome at 1440, 960 and 390px and checks contrast, overflow, tap targets, headings and broken images.
+- `check` reads source (HTML, CSS, JSX, TSX, MDX). It's the same report without the rewrites.
+- `same` compares the design's tokens with the five cliché clusters and with your other designs. If it lands on one, derive the surface, type and colour again from the subject.
+- `render` loads pages in headless Chrome at 1440, 960 and 390px and checks contrast, overflow, tap targets, headings and broken images.
 - If a hit is right for this subject, allow it with `tells-ok: <rule-id> <reason>` in a comment on the same line or the line above. The reason must come from the subject, not "it looks nice".
 - Don't silence a rule to get a clean run. A clean run with no exceptions is better than a clean run with many.
 
@@ -36,6 +39,6 @@ Don't stop to ask the user to pick, and don't ask a model which looks better: LL
 1. **Gate.** Run `fix` and `render` on every candidate. Drop any with errors left that you can't settle from the subject.
 2. **Prefer the product.** Keep the candidates that lead with the product itself (its screens, its data, its main task) over ones built around a metaphor. In blind tests, metaphor-led pages won 0 of 41 against professional work; product-led ones won about half.
 3. **Prefer fewer exceptions.** Among those left, keep the one with the fewest `tells-ok` exceptions.
-4. **Break ties on distance.** If it's still close, keep the one furthest from your last build and from the cliché clusters in `TELLS/rules/anti-slop.md`. Close calls are coin flips even for a human picker, so don't spend time on them.
+4. **Break ties on distance.** If it's still close, run `same` on each and keep the one that matches fewest house axes and no cluster. Close calls are coin flips even for a human picker, so don't spend time on them.
 
 Report the winner, what ruled out the others, and every exception it keeps. Bring in a person only when the user asks for one. See `TELLS/playbook/taste.md` for the evidence.

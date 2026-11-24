@@ -23,6 +23,7 @@
   <a href="#install">Install</a> ·
   <a href="#use">Use</a> ·
   <a href="#fix">Fix</a> ·
+  <a href="#same">Same</a> ·
   <a href="#rules">Rules</a> ·
   <a href="#claude-code">Claude Code</a> ·
   <a href="#faq">FAQ</a>
@@ -35,6 +36,7 @@ A tell is the mark that gives a screen away as default output: the uppercase eye
 - **A rule set** ([`rules/anti-slop.md`](rules/anti-slop.md)) that names each tell and says what to do instead.
 - **Two linters.** `tells check` reads HTML, CSS, JSX, TSX and MDX source. `tells render` loads pages in headless Chrome and checks contrast, overflow, tap targets, headings and images.
 - **A fixer.** `tells fix` rewrites the hits that don't depend on the subject and reports the rest.
+- **A sameness check.** `tells same` catches a design that lands on one of the five cliché looks, on your own house style, or on a copy of a sibling.
 - **A playbook** ([`playbook/`](playbook)) for building a design system from a subject, reviewing it, and measuring taste.
 
 It's built for product UI, the dashboards, tools and apps people use every day, and it runs on plain Node with no dependencies.
@@ -59,23 +61,27 @@ Without `npm link`, call `node path/to/tells/bin/tells.mjs` in place of `tells`.
 tells fix ./src                                     # rewrite what has one answer, report the rest
 tells check ./src                                   # report only
 tells render ./dist/index.html http://localhost:3000
+tells same design-systems/                          # each design against the clichés and the others
 ```
 
 ```
 tells check  [paths...]        Static audit of HTML, CSS, JSX, TSX and MDX source
 tells fix    [paths...]        Rewrite the hits that have one right answer, then report the rest
 tells render [files|dirs|urls] Rendered audit in headless Chrome at 1440, 960 and 390px
-tells rules  [check|render]    List every rule with its severity and fix
+tells same   [designs...]      Catch a design that lands on a cliché cluster, your house style or a sibling
+tells rules  [check|render|same] List every rule with its severity and fix
 
 --json          Machine-readable output
 --strict        Fail on warnings as well as errors
 --rule <id>     Run one rule
 --dry-run       fix: show what would change, write nothing
 --radius <css>  fix: radius that replaces pills (default 6px)
+--house <path>  same: compare with this design instead of the majority
+--against <p>   same: more past designs to compare with (repeatable)
 --widths a,b,c  Viewport widths for render
 ```
 
-All three exit 1 when errors are left, so they work in CI as they are. Files with `mobile` in their path render at 390px only, unless you pass `--widths`.
+All four exit 1 when errors are left, so they work in CI as they are. Files with `mobile` in their path render at 390px only, unless you pass `--widths`.
 
 Here is `tells fix` on the left half of the picture above ([`docs/shots/hero.html`](docs/shots/hero.html)), with long snippets shortened:
 
@@ -125,6 +131,27 @@ A `tells-ok` with no reason, or with a rule that doesn't exist, is itself an err
 | `placeholder-copy` | Replaces John and Jane Doe and `@username` with realistic names, varied by file. Lorem ipsum and Acme need real copy and stay in the report. |
 
 Copy, colour, type and layout need a decision about the subject. Those stay in the report.
+
+## Same
+
+A screen can pass every rule and still be the look you shipped last time. Left alone, a generator drifts back to whatever won before, and banning one look only moves it to the next default. `tells same` reads a design's tokens (its `tokens.css`, or the CSS or HTML that declares the most `:root` properties) and checks three things:
+
+- **The cliché clusters.** Warm paper with a book serif, near-black with one acid accent, neo-Swiss, a glowing dark void, and soft commerce. These are clusters 1 to 5 in [`rules/anti-slop.md`](rules/anti-slop.md#3-colour-the-cliché-clusters).
+- **Your house style.** On six axes (page, ink, hairline, accent, typeface and radius), it finds the bucket most of a design's siblings share, and flags a design that matches five of them. Siblings are the other designs in the same folder, plus any you pass with `--against`. `--house <design>` compares with one design instead, such as the one that won last time.
+- **Token copies.** Six or more colour tokens with a sibling's name and value.
+
+```
+✗ runout  design-systems/runout/tokens.css
+    ● page      light neutral  = house (halyard)
+    ● ink       near-black  = house (halyard)
+    ● hairline  light grey  = house (halyard)
+    ● accent    one  = house (halyard)
+    ● typeface  neutral grotesk  = house (halyard)
+    ● radius    card  = house (halyard)
+    [error] house-style            6 of 6 axes: page, ink, hairline, accent, typeface, radius
+```
+
+If the subject earns the look, say so in its `tokens.css`, `DESIGN.md` or `directions.md`: `tells-ok: house-style <why this subject>`.
 
 ## Rules
 
@@ -190,6 +217,23 @@ Copy, colour, type and layout need a decision about the subject. Those stay in t
 | `skipped-heading` | warn | a11y | Do not skip heading levels (e.g. h1 -> h3); step down sequentially. |
 | `missing-focus-ring` | warn | a11y | Never set outline: none/0 on :focus without a visible replacement (box-shadow, border-color, or :focus-visible ring). |
 <!-- /rules:render -->
+
+</details>
+
+<details>
+<summary><b><code>tells same</code></b>: 7 rules on a design's tokens</summary>
+
+<!-- rules:same -->
+| Rule | Severity | Fix |
+|---|---|---|
+| `cluster-warm-paper` | error | Cream paper, a book serif and a terracotta accent is cluster 1. Derive surface, type and accent from the subject, or name the printed source that earns them. |
+| `cluster-acid-dark` | error | Near-black, hairlines and one acid accent is cluster 2. Ask what this subject's own surfaces and signals look like. |
+| `cluster-neo-swiss` | error | Zero radius, hairline rules, condensed grotesk and red with blue is cluster 3. Keep the grid only if the subject's own documents use it. |
+| `cluster-glow-void` | error | A dark void with glass, glow and violet or coral washes is cluster 4. Remove the effects and start from the subject's real materials. |
+| `cluster-soft-commerce` | error | Putty, forest green or brass, pills and italic serif notes is cluster 5. Derive the palette from the products themselves. |
+| `house-style` | error | This matches your house style: the look most of your other designs share, or the design named with --house. Derive it from this subject, or write why this subject earns it. |
+| `token-copy` | error | Six or more colour tokens copied from a sibling. Every colour needs an origin in this subject. |
+<!-- /rules:same -->
 
 </details>
 
