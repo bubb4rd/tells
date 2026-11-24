@@ -41,4 +41,6 @@ Don't stop to ask the user to pick, and don't ask a model which looks better: LL
 3. **Prefer fewer exceptions.** Among those left, keep the one with the fewest `tells-ok` exceptions.
 4. **Break ties on distance.** If it's still close, run `same` on each and keep the one that matches fewest house axes and no cluster. Close calls are coin flips even for a human picker, so don't spend time on them.
 
+`node TELLS/bin/tells.mjs pick <variant folders> --against <past designs>` runs that order for you. To build the variants too, unattended, use `node TELLS/bin/tells.mjs make "<brief>"`.
+
 Report the winner, what ruled out the others, and every exception it keeps. Bring in a person only when the user asks for one. See `TELLS/playbook/taste.md` for the evidence.

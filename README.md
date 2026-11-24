@@ -24,6 +24,7 @@
   <a href="#use">Use</a> ·
   <a href="#fix">Fix</a> ·
   <a href="#same">Same</a> ·
+  <a href="#make">Make</a> ·
   <a href="#rules">Rules</a> ·
   <a href="#claude-code">Claude Code</a> ·
   <a href="#faq">FAQ</a>
@@ -36,6 +37,7 @@ A tell is the mark that gives a screen away as default output: the uppercase eye
 - **A rule set** ([`rules/anti-slop.md`](rules/anti-slop.md)) that names each tell and says what to do instead.
 - **Two linters.** `tells check` reads HTML, CSS, JSX, TSX and MDX source. `tells render` loads pages in headless Chrome and checks contrast, overflow, tap targets, headings and images.
 - **A fixer.** `tells fix` rewrites the hits that don't depend on the subject and reports the rest.
+- **A loop with no picks.** `tells make` builds several variants of a brief in parallel with an agent, fixes them, and chooses one with `tells pick`, by checks and not by a taste score.
 - **A sameness check.** `tells same` catches a design that lands on one of the five cliché looks, on your own house style, or on a copy of a sibling.
 - **A playbook** ([`playbook/`](playbook)) for building a design system from a subject, reviewing it, and measuring taste.
 
@@ -62,6 +64,7 @@ tells fix ./src                                     # rewrite what has one answe
 tells check ./src                                   # report only
 tells render ./dist/index.html http://localhost:3000
 tells same design-systems/                          # each design against the clichés and the others
+tells make "a shift handover screen for night nurses" # brief in, one checked screen out
 ```
 
 ```
@@ -69,6 +72,8 @@ tells check  [paths...]        Static audit of HTML, CSS, JSX, TSX and MDX sourc
 tells fix    [paths...]        Rewrite the hits that have one right answer, then report the rest
 tells render [files|dirs|urls] Rendered audit in headless Chrome at 1440, 960 and 390px
 tells same   [designs...]      Catch a design that lands on a cliché cluster, your house style or a sibling
+tells pick   <variants...>     Choose between variants with checks: errors, exceptions, sameness, warnings
+tells make   "<brief>"         Build variants in parallel with an agent, fix them, pick one, write a report
 tells rules  [check|render|same] List every rule with its severity and fix
 
 --json          Machine-readable output
@@ -76,12 +81,15 @@ tells rules  [check|render|same] List every rule with its severity and fix
 --rule <id>     Run one rule
 --dry-run       fix: show what would change, write nothing
 --radius <css>  fix: radius that replaces pills (default 6px)
---house <path>  same: compare with this design instead of the majority
---against <p>   same: more past designs to compare with (repeatable)
+--house <path>  same, pick, make: compare with this design instead of the majority
+--against <p>   same, pick, make: past designs to compare with (repeatable)
+--variants <n>  make: how many to build (default 4)
+--agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
+--no-render     pick, make: skip the headless Chrome checks
 --widths a,b,c  Viewport widths for render
 ```
 
-All four exit 1 when errors are left, so they work in CI as they are. Files with `mobile` in their path render at 390px only, unless you pass `--widths`.
+Every command exits 1 when errors are left, so they work in CI as they are. Files with `mobile` in their path render at 390px only, unless you pass `--widths`.
 
 Here is `tells fix` on the left half of the picture above ([`docs/shots/hero.html`](docs/shots/hero.html)), with long snippets shortened:
 
@@ -152,6 +160,21 @@ A screen can pass every rule and still be the look you shipped last time. Left a
 ```
 
 If the subject earns the look, say so in its `tokens.css`, `DESIGN.md` or `directions.md`: `tells-ok: house-style <why this subject>`.
+
+## Make
+
+`tells make` takes a brief and returns one checked screen, with nothing to answer in between.
+
+```sh
+tells make "a shift handover screen for night nurses on a hospital ward" --against design-systems/
+```
+
+1. **Prompts.** One per variant (four by default), each with a different angle on the subject: its data, its documents, its place, its people, its rhythm or its region. Every angle leads with the product; none is a metaphor.
+2. **Build.** An agent per variant, in parallel, each in its own folder. The default is Claude Code (`claude -p`, limited to reading, writing and running `node`). `--agent` takes any command that reads a prompt on stdin.
+3. **Fix and pick.** `tells fix` on every variant, then `tells pick`: fewest errors, then fewest written exceptions, then off the cliché clusters and your house style, then fewest warnings.
+4. **Report.** `REPORT.md` has the ranking, why each loser lost, and the winner. Each variant keeps its prompt, the agent's log and its `NOTES.md`, which says where each colour comes from.
+
+`tells pick` also works on its own, on variants from anywhere. It doesn't use a taste model. One was tested on 15 generated rounds held out of training and did no better than chance at choosing between variants ([`taste.md`](playbook/taste.md#a-model-cant-make-the-cut-yet)).
 
 ## Rules
 

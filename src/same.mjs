@@ -2,7 +2,7 @@
  * tells same: catch a design that lands on a default look or on your own last one.
  *
  * Usage:
- *   tells same [designs...] [--against <path>]... [--json] [--strict]
+ *   tells same [designs...] [--against <path>]... [--house <path>] [--no-siblings] [--json]
  *
  * A design is a folder (its tokens.css, or the CSS/HTML file declaring the most :root tokens)
  * or a single CSS/HTML file. A folder that holds several designs checks each one against the rest.
@@ -474,7 +474,7 @@ export function run(argv = process.argv.slice(2)) {
       results.push({ design: display(d), error: "no tokens found: no tokens.css and no :root custom properties" });
       continue;
     }
-    const siblings = [...new Set([...siblingsOf(d), ...extra])].filter((p) => p !== d).map(load).filter((s) => s && Object.keys(s.props).length);
+    const siblings = [...new Set([...(flags["no-siblings"] ? [] : siblingsOf(d)), ...extra])].filter((p) => p !== d).map(load).filter((s) => s && Object.keys(s.props).length);
     const ref = pinned && load(path.resolve(ROOT, pinned));
     if (pinned && !ref) throw new Error(`--house ${pinned}: no tokens found`);
     const house = ref

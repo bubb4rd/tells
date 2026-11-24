@@ -8,6 +8,8 @@ Usage
   tells fix    [paths...]        Rewrite the hits that have one right answer, then report the rest
   tells render [files|dirs|urls] Rendered audit in headless Chrome at 1440, 960 and 390px
   tells same   [designs...]      Catch a design that lands on a cliché cluster, your house style or a sibling
+  tells pick   <variants...>     Choose between variants with checks: errors, exceptions, sameness, warnings
+  tells make   "<brief>"         Build variants in parallel with an agent, fix them, pick one, write a report
   tells rules  [check|render|same] List every rule with its severity and fix
 
 Flags
@@ -16,7 +18,11 @@ Flags
   --rule <id>     Run one rule
   --dry-run       fix: show what would change, write nothing
   --radius <css>  fix: radius that replaces pills (default 6px)
-  --against <p>   same: more past designs to compare with (repeatable)
+  --against <p>   same, pick, make: past designs to compare with (repeatable)
+  --house <p>     same, pick, make: compare with this design instead of the majority
+  --variants <n>  make: how many to build (default 4)
+  --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
+  --no-render     pick, make: skip the headless Chrome checks
   --widths a,b,c  Viewport widths for render
 
 Exit code is 1 when errors are found (or warnings, with --strict).
@@ -32,6 +38,10 @@ if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") {
   console.log(pkg.version);
 } else if (cmd === "check") {
   (await import("../src/check.mjs")).run(rest);
+} else if (cmd === "make") {
+  await (await import("../src/make.mjs")).run(rest);
+} else if (cmd === "pick") {
+  (await import("../src/pick.mjs")).run(rest);
 } else if (cmd === "same") {
   (await import("../src/same.mjs")).run(rest);
 } else if (cmd === "fix") {
