@@ -540,7 +540,7 @@ function detectVisible(ctx) {
     if ((m = /⌘\s*\S|⌃\s*\S|↵|\bCtrl\s*\+?\s*K\b/.exec(text))) emit("fake-shortcut", m.index);
     for (const d of text.matchAll(/—/g)) ctx.aggregate("em-dash", i, d.index, true);
     if ((m = /DESIGN SYSTEM|\bDesign System\s+\d|\bsystem\s+\d{2}\b/i.exec(text)) && /DESIGN SYSTEM|\d/.test(m[0])) emit("eyebrow-copy", m.index);
-    else if ((m = /\bdesign system\b|\bclick (?:any|to copy)\b|\bauthored by\b|\bauthor model\b/i.exec(text))) emit("meta-copy", m.index);
+    else if ((m = /\bclick (?:any|to copy)\b|\bauthored by\b|\bauthor model\b/i.exec(text))) emit("meta-copy", m.index);
     for (const group of dotGroups(segments)) {
       const dots = [...group.matchAll(/(?:^|\s)[·•](?=\s|$)/g)];
       const parts = group.split(/(?:^|\s)[·•](?=\s|$)/).filter((s) => s.trim()).length;
