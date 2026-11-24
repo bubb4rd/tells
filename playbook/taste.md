@@ -1,0 +1,128 @@
+# Taste: how to measure it, and what one picker's data showed
+
+Rules can say what's broken. They can't say what's good. For that you need someone's judgment, measured in a way that doesn't flatter you. This file has two parts: the method, which anyone can run, and the findings from running it.
+
+**Scope, stated once and meant throughout.** Every number below comes from one human picker, a designer, across a few months of rounds in late 2026: 2,286 blind picks over 535 unique images. Treat the findings as strong leads about one person's taste and as solid evidence about the *method*. Run the method on your own taste before you adopt the findings.
+
+---
+
+## Part 1: The method
+
+### Blind pairwise picks
+
+Show two images side by side and ask which is better. Pick fast: about 1.6 seconds each is typical, which measures the first impression a visitor actually gets. Mix your work into a **reference corpus** of shipped work by studios and product designers (ours grew past 300 shots). The number to track is your win rate against that corpus. 50% means your work holds its own against it.
+
+Don't tell the picker which image is yours. Don't let them see the filenames.
+
+### Pair like with like
+
+Pairing any shot with any other answers "is this image appealing?", not "is this a good mobile design?", and buries small differences in noise. Tag every image with a `kind` (mobile, dashboard, landing, brand kit, and so on) and run three kinds of pair:
+
+- **Head-to-head:** your designs in a round against each other. This decides which one wins.
+- **Benchmark:** yours against pro shots of the same kind. This says how good the winner is.
+- **Corpus:** pro against pro, same kind, to keep learning the picker's taste within a kind.
+
+Head-to-head is the efficient test. In one round, 49 head-to-head picks produced a strict ranking of four designs. The same question had stayed unanswered through two rounds of mixed pairs.
+
+### Rank with Bradley-Terry, not raw win rate
+
+The corpus changes between rounds as you add references, so raw win rates aren't comparable across rounds. A Bradley-Terry fit adjusts each score for who it faced and gives each score an uncertainty. Pairing uncertain images with close rivals, rather than at random, helps: in simulation it matched random pairing at 200 picks and recovered the true order better at 400 (rank correlation 0.66 vs 0.57).
+
+### Check the picker against themselves
+
+Repeat some pairs. Our picker agreed with themselves on 81.9% of repeated pairs overall, and on 98.5% when the quality gap was wide. When two images are within 0.75 BT of each other, repeat agreement drops to 62.1%, close to a coin flip. **A round that ends that close is done. Pick either one and move on.**
+
+### Sample size
+
+About 15 picks per image before calling a result. At 10 or fewer, differences under about 30 points are noise.
+
+### Render every image fresh
+
+Familiarity costs. A control image the picker had already seen 11 times dropped from 8 of 11 wins to 1 of 11 (p = 0.008). The same design, re-rendered under a new name, won 50 of 112 (p = 0.025). Every round renders every image fresh, never reusing a shot the picker has seen.
+
+### Keep framing identical within a round
+
+How a shot is framed changes how it's judged, by people and by models. Use one framing script for every shot in a round. If a design doesn't fit the crop, change its layout width, not the zoom. Treat a new framing as untested until it has its own picks.
+
+### Run controlled variants, plus one far arm
+
+Each round, make 4–6 versions that each change one thing against a control. At least one version must be far from the control: a different surface, typeface lineage and composition. Small variants only polish the current look; the far arm is how a new look gets a chance. Stop testing a question once a round fails to move the score.
+
+### Don't let an LLM pick
+
+Three rubric-driven LLM judges tested on 98 of the picker's pairs scored 45.9% to 58.2%. On pro-vs-pro pairs they were at chance (50% to 55%). When a judge dismissed a design as *generic*, *plain*, *stock* or *templated*, it was right 45.0% of the time. It punished finished, useful UI for looking ordinary.
+
+Showing a vision model the nearest liked and rejected references, in place of a written rubric, lifted pro-vs-pro accuracy by 10 points (55.0% to 65.0%). It still failed on concept-vs-pro pairs (47.4%), because looking like something good isn't the same as being good.
+
+Use AI review for what can be checked: alignment, states, contrast, numerals, and the rules in `tells check` and `tells render`. Never let an AI score decide between design directions.
+
+### A model can make the first cut
+
+A frozen vision embedding (SigLIP-So400M, screenshots padded to square, trained only on the reference corpus) predicted 69.4% of the calibration pairs zero-shot. A probe combining it with DINOv2 was right 96.2% of the time on its confident, wide-gap calls. That's good enough to drop obvious losers before a human picks, and not good enough to rank close calls.
+
+Three cautions from the same tests:
+
+- **Pad, don't crop or squash.** Default preprocessing slices off sidebars and warps type. Padding gained 4.6 to 7.4 points.
+- **Don't train on your own drafts.** A probe trained with early losing drafts learned "looks like this product, so it's bad" and then marked down that product's later winners.
+- **Models fall for the gloss you've banned.** Polished purple-glow dark SaaS templates and washed-out nature backdrops fooled them. Keep the static rules as the hard check on those looks, whatever a model says.
+
+---
+
+## Part 2: What held up
+
+These held across more than one subject, or are about how the test behaves. Each one is scoped to one picker.
+
+### 1. Product first beats concept first
+
+Concept- and metaphor-led pages (triplicate forms, a share certificate, a staircase, a medallion) won 0 of 41 against the corpus. A carefully executed security-printing certificate lost 0 of 33 however it was shown. A real product dashboard, with one number that matters, one accent and a chart that answers the user's question, won 14 of 27 (52%).
+
+It transferred outside finance: a bike-workshop tool went from 0 of 12 as a paper metaphor to 16 of 23 (70%) across its light desktop screens once rebuilt product-first.
+
+In a benchmark where one brief was built by five methods, the version made with this playbook won head-to-head 22 of 22. The four others (a reference archive alone, two public design skills, and no skill) went 2 of 35 combined against pro work. All four losers led with a sentence; the winner led with the number and its chart.
+
+For a subject that isn't a product (a firm, a publication, an event, a place), lead with what people actually come for. Never invent a dashboard to make it product-first.
+
+### 2. Show the UI big
+
+Presentation can't rescue a weak design, but it decides how a good one scores.
+
+- **Desktop:** the same dashboard won 8 of 11 (73%) as a zoomed crop, against 14 of 27 (52%) flat.
+- **Mobile:** shot close and low, with the phones bleeding off the frame, one design won 7 of 15 (47%) against pro mobile work. The same design in three other presentations won 1 of 35 (p < 0.001): a flat front-on pair 0 of 10, a wide rendered scene 1 of 9, a phone-in-hand stock composite 0 of 16.
+- **Keep the signature visual inside the crop.** Moving one screen's diagram into the zoomed crop lifted it from 1 of 8 to 8 of 12 head-to-head.
+
+### 3. Theme and accent didn't move picks
+
+Crossing light/dark with blue/orange, about 55 picks per level: light 41% vs dark 49% (p = 0.45), blue 51% vs orange 39% (p = 0.25). Spend rounds on structure and content, where the effects were large, not on colourways.
+
+### 4. Give colour a structural role
+
+On mobile, a full-bleed colour field with the key number on it, over a white sheet, beat every other structure: 29 of 30 head-to-head on one product, and 16 to 4 head-to-head on a second. Swapping an accent didn't matter. Giving colour a job did.
+
+### 5. Keep surfaces cohesive
+
+A dark sidebar on a light canvas lost 0 of 22.
+
+### 6. Execution level is what top shots share
+
+The picker's top-ranked shots share no feature a checklist can capture: light and dark, device and flat, sparse and dense all appear. What they share is the finish of a top studio or product designer. Take finish from the top references. Don't take their palette, type or layout.
+
+### 7. Watch the corpus's genre
+
+27 of our corpus's top 50 were fintech or AI-SaaS product shots. Optimising against it rewards an instantly legible, clean fintech screen. That's a fine bar for execution, and a bad source for a look. Take the look from the subject's own register.
+
+### 8. Checkable rules beat rules about feel
+
+The rules that held up are ones you can test: contrast, tap targets, pills, eyebrows. Rules about feel ("looks templated") are the same words LLM judges got wrong 55% of the time, and they push generators away from the plain, product-first work that won.
+
+---
+
+## Part 3: Leads that didn't hold, or aren't settled
+
+- **Don't encode rules the data hasn't confirmed.** Early claims that clutter, text-led layouts and collages lose did not hold up in picks.
+- **The bans on glow, pills, purple and glass had no support from picks.** On the picker's own inspiration board, pins that broke those rules did about as well as pins that didn't (glow 13 of 20, pill 7 of 11, purple 9 of 17, glass 7 of 12), all within noise. That session's repeat consistency was 72%, so these are leads, not findings. The bans stay because they mark defaults, not because picks proved them.
+- **Single-subject findings become a house style.** On one light finance dashboard, 1px hairlines on a flat white grid beat borderless tonal surfaces 13 of 13 head-to-head (p < 0.001). On one landing page, a centred hero with the product below beat a full-bleed sea photo behind the hero. Read as global rules, findings like these turned every new subject into the same white page with grey hairlines and one accent. Treat them as hypotheses anywhere else, and test them.
+- **A photo backdrop isn't atmosphere.** A pale, low-contrast photo with no subject behind a hero lost. One supporting element for depth, on a plain page, is the lead to test, never a background that takes over.
+
+## Still tired
+
+Consistent with the picks: purple or lavender gradients, glass everything, the four-pointed AI sparkle, dark-with-glow developer-tool pages, illustration standing in for product, brand-guideline sheets passed off as design. The complaint behind all of them is the same: no product, no intention.
