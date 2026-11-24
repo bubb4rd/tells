@@ -2,7 +2,16 @@
   "name": "tells",
   "version": "0.1.0",
   "description": "Rules and linters for the marks of default, AI-generated UI.",
-  "author": { "name": "bubb4rd" },
+  "author": {
+    "name": "bubb4rd"
+  },
   "license": "MIT",
-  "keywords": ["design", "ui", "lint", "accessibility"]
+  "keywords": [
+    "design",
+    "ui",
+    "lint",
+    "accessibility"
+  ],
+  "homepage": "https://github.com/bubb4rd/tells",
+  "repository": "https://github.com/bubb4rd/tells"
 }

@@ -928,4 +928,4 @@ function commonDir(files) {
   return first.slice(0, n).join(path.sep) || path.sep;
 }
 
-export { RULES };
+export { RULES, findChrome };

@@ -1,33 +1,65 @@
-# tells
+<p align="center">
+  <a href="https://github.com/bubb4rd/tells">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/icon-light.png">
+      <img src="docs/assets/icon-dark.png" alt="tells" width="120" height="120">
+    </picture>
+  </a>
+</p>
 
-A tell is the mark that gives a screen away as default output: the uppercase eyebrow over every heading, the purple gradient, the pill buttons, the three cards with icons in tinted squares, "Get started →".
+<h1 align="center">tells</h1>
 
-tells is three things:
+<p align="center">
+  <a href="https://github.com/bubb4rd/tells/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/bubb4rd/tells/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Node 20+" src="https://img.shields.io/badge/Node-20%2B-0a0a0a?logo=nodedotjs&logoColor=white">
+  <img alt="No dependencies" src="https://img.shields.io/badge/Dependencies-0-0a0a0a">
+  <a href="#claude-code"><img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude_Code-plugin-0a0a0a?logo=claude&logoColor=white"></a>
+  <a href="#license"><img alt="License: MIT and CC BY 4.0" src="https://img.shields.io/badge/License-MIT_%C2%B7_CC_BY_4.0-c8321e"></a>
+</p>
 
-- **A rule set** ([`rules/anti-slop.md`](rules/anti-slop.md)) that names those marks and says what to do instead.
-- **Two linters** that catch the ones a machine can catch: `tells check` reads source, `tells render` loads pages in headless Chrome. `tells fix` rewrites the hits that have one right answer.
-- **A playbook** ([`playbook/`](playbook)) for building a design system from a subject, reviewing it, and testing taste with blind pairwise picks.
+<p align="center">Find the marks that give a screen away as default, AI-generated output, and fix the ones that have one right answer.</p>
 
-It's built for product UI: dashboards, tools and apps people use every day. It runs on plain Node 20 and has no dependencies.
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#use">Use</a> ·
+  <a href="#fix">Fix</a> ·
+  <a href="#rules">Rules</a> ·
+  <a href="#claude-code">Claude Code</a> ·
+  <a href="#faq">FAQ</a>
+</p>
 
-## Why checkable rules
+<p align="center"><img src="docs/assets/hero.png" alt="Two versions of a bike shop's booking screen. On the left, default output: a dark panel with a purple glow, a tracked uppercase eyebrow, a gradient headline with an italic accent word and a sparkle emoji, a pill button reading Get started with an arrow, a Fast, Secure, Simple tagline and three glass cards. Each one is circled in red pencil and labelled with the tells rule that catches it. On the right, the same screen built from its subject: the shop's name and street, a plain serif headline, Book a repair, the turnaround, three prices, a Book a drop-off slot button and the next free slot."></p>
 
-The rules came out of over a thousand blind pairwise picks between generated designs and professional work. Two things held up:
+A tell is the mark that gives a screen away as default output: the uppercase eyebrow over every heading, the purple gradient, the pill buttons, the three cards with icons in tinted squares, "Get started →". tells names them, catches the ones a machine can catch, and rewrites the ones with a single correct fix.
 
-1. Rules you can check (contrast, tap targets, pills, eyebrows) moved results. Rules about feel ("looks templated") didn't, and an LLM judge using them marked down plain, finished UI.
-2. Left alone, a generator drifts back to whatever won last time. Banning a look isn't enough; every replacement needs a reason from the subject.
+- **A rule set** ([`rules/anti-slop.md`](rules/anti-slop.md)) that names each tell and says what to do instead.
+- **Two linters.** `tells check` reads HTML, CSS, JSX, TSX and MDX source. `tells render` loads pages in headless Chrome and checks contrast, overflow, tap targets, headings and images.
+- **A fixer.** `tells fix` rewrites the hits that don't depend on the subject and reports the rest.
+- **A playbook** ([`playbook/`](playbook)) for building a design system from a subject, reviewing it, and measuring taste.
 
-So the linters enforce the checkable half, and each exception has to be written down. See [`playbook/taste.md`](playbook/taste.md) for the method and the evidence.
+It's built for product UI, the dashboards, tools and apps people use every day, and it runs on plain Node with no dependencies.
+
+> [!NOTE]
+> tells is early (0.1). The rules come from 2,286 blind picks by one designer. They're strong leads about one person's taste and solid evidence about the method. [`taste.md`](playbook/taste.md) says what that does and doesn't prove.
+
+## Install
+
+Requires Node 20 or later. `tells render` also needs Chrome or Chromium.
+
+```sh
+git clone https://github.com/bubb4rd/tells.git
+cd tells && npm link        # puts `tells` on your PATH
+```
+
+Without `npm link`, call `node path/to/tells/bin/tells.mjs` in place of `tells`. Set `CHROME_PATH` if Chrome isn't in a standard place.
 
 ## Use
 
 ```sh
-git clone https://github.com/bubb4rd/tells && cd tells
-node bin/tells.mjs check ../my-app/src
-node bin/tells.mjs render ../my-app/dist/index.html https://localhost:3000
+tells fix ./src                                     # rewrite what has one answer, report the rest
+tells check ./src                                   # report only
+tells render ./dist/index.html http://localhost:3000
 ```
-
-Or link it once with `npm link` and call `tells` anywhere.
 
 ```
 tells check  [paths...]        Static audit of HTML, CSS, JSX, TSX and MDX source
@@ -43,20 +75,27 @@ tells rules  [check|render]    List every rule with its severity and fix
 --widths a,b,c  Viewport widths for render
 ```
 
-All three exit 1 when errors are left, so they work in CI as they are. `render` needs Chrome or Chromium; set `CHROME_PATH` if it isn't in a standard place. Files with `mobile` in their path render at 390px only, unless you pass `--widths`.
+All three exit 1 when errors are left, so they work in CI as they are. Files with `mobile` in their path render at 390px only, unless you pass `--widths`.
 
-### Fixing
+Here is `tells fix` on the left half of the picture above ([`docs/shots/hero.html`](docs/shots/hero.html)), with long snippets shortened:
 
-`tells fix` handles six rules where the right answer doesn't depend on the subject. It touches only open hits, never a line with a `tells-ok`, and running it twice changes nothing the second time.
+```
+Fixed  2 changes
+  hero.html:26  pill-radius   .pill { … border-radius: 6px; background: #7c3aed; … }
+  hero.html:57  arrow-suffix  <span class="pill" …>Get started</span>
 
-- `transition-all` becomes a named list: the usual hover and focus properties, plus whatever this element actually changes. For JSX that means its variant and conditional classes and its `style={{}}` keys; for CSS, the properties its `:hover`, `[aria-*]` and `.is-*` rules set.
-- `pill-radius` swaps each pill-sized value for `--radius` (default `6px`), so `9999px 9999px 0 0` keeps its square corners. A full radius on a square box is a circle, and isn't flagged.
-- `bounce-easing` becomes `cubic-bezier(0.2, 0, 0, 1)`, and spring `bounce` becomes 0.
-- `arrow-suffix` drops the arrow after the label. A lone arrow, as in `<kbd>→</kbd>`, is content, so it stays.
-- `reduced-motion-guard` adds one `prefers-reduced-motion` block to CSS and HTML. In JSX the motion library decides, so it's left for you.
-- `placeholder-copy` replaces John and Jane Doe and `@username` with realistic names, varied by file. Lorem ipsum and Acme need real copy and stay in the report.
+hero.html  10 error, 3 warn
+  hero.html:12  [warn]  default-font    (Inter, 2 lines) …family=Inter:wght@400;700…
+  hero.html:20  [error] glow-blur       (blur 60px) …radial-gradient(circle, #8b5cf6, transparent 70%); filter: blur(60px); }
+  hero.html:21  [warn]  tracked-caps    (.eyebrow) …letter-spacing: 0.18em; text-transform: uppercase; …
+  hero.html:24  [error] gradient-text   …-webkit-background-clip: text; background-clip: text; color: transparent; }
+  hero.html:55  [error] italic-accent   Bike repair, reimagined ✨
+  hero.html:57  [error] generic-cta     Get started
+  hero.html:58  [error] dot-triplet     Fast · Secure · Simple
+  …
+```
 
-Everything else needs a decision about the subject: copy, colour, type and layout. Those stay in the report that follows the fixes.
+The pill and the arrow had one right answer, so they're gone. Everything left needs a decision about the subject, and the report says what each rule wants instead.
 
 ### Exceptions
 
@@ -72,18 +111,25 @@ Some tells are right for a subject. Allow one hit with a comment on the same lin
 
 A `tells-ok` with no reason, or with a rule that doesn't exist, is itself an error. `slop-ok:` works as an alias.
 
-## With Claude Code
+## Fix
 
-The repo is a Claude Code plugin. Add it, and the `tells` skill loads the rules before UI work and runs both linters after:
+`tells fix` handles six rules where the right answer doesn't depend on the subject. It touches only open hits, never a line with a `tells-ok`, and a second run changes nothing.
 
-```
-/plugin marketplace add bubb4rd/tells
-/plugin install tells@tells
-```
+| Rule | What it does |
+|---|---|
+| `transition-all` | Names the properties: the usual hover and focus set, plus whatever this element changes. In JSX that's its variant and conditional classes and its `style={{}}` keys; in CSS, what its `:hover`, `[aria-*]` and `.is-*` rules set. |
+| `pill-radius` | Swaps each pill-sized value for `--radius` (default `6px`), so `9999px 9999px 0 0` keeps its square corners. A full radius on a square box is a circle and isn't flagged. |
+| `bounce-easing` | Overshooting curves become `cubic-bezier(0.2, 0, 0, 1)`; spring `bounce` becomes 0. |
+| `arrow-suffix` | Drops the arrow after a label. A lone arrow, as in `<kbd>→</kbd>`, is content and stays. |
+| `reduced-motion-guard` | Adds one `prefers-reduced-motion` block to CSS and HTML. In JSX the motion library decides, so it's left for you. |
+| `placeholder-copy` | Replaces John and Jane Doe and `@username` with realistic names, varied by file. Lorem ipsum and Acme need real copy and stay in the report. |
+
+Copy, colour, type and layout need a decision about the subject. Those stay in the report.
 
 ## Rules
 
-`tells check`
+<details open>
+<summary><b><code>tells check</code></b>: 31 rules on source</summary>
 
 <!-- rules:check -->
 | Rule | Severity | Category | `tells fix` | Fix |
@@ -121,7 +167,10 @@ The repo is a Claude Code plugin. Add it, and the `tells` skill loads the rules 
 | `ok-unknown` | error | meta |  | tells-ok names a rule id that doesn't exist. Check `tells rules`. |
 <!-- /rules:check -->
 
-`tells render`
+</details>
+
+<details>
+<summary><b><code>tells render</code></b>: 14 rules on the rendered page</summary>
 
 <!-- rules:render -->
 | Rule | Severity | Category | Fix |
@@ -142,11 +191,67 @@ The repo is a Claude Code plugin. Add it, and the `tells` skill loads the rules 
 | `missing-focus-ring` | warn | a11y | Never set outline: none/0 on :focus without a visible replacement (box-shadow, border-color, or :focus-visible ring). |
 <!-- /rules:render -->
 
-The full rule set, including the rules no linter can check, is in [`rules/anti-slop.md`](rules/anti-slop.md).
+</details>
+
+The full rule set, including the tells a linter can't check, is in [`rules/anti-slop.md`](rules/anti-slop.md).
+
+### Why checkable rules
+
+The rules came out of blind pairwise picks between generated designs and professional work. Two things held up:
+
+1. Rules you can check (contrast, tap targets, pills, eyebrows) moved results. Rules about feel ("looks templated") didn't, and an LLM judge using them marked down plain, finished UI.
+2. Left alone, a generator drifts back to whatever won last time. Banning a look isn't enough; every replacement needs a reason from the subject.
+
+So the linters enforce the checkable half, and each exception has to be written down. [`taste.md`](playbook/taste.md) has the method and the evidence.
+
+## Claude Code
+
+The repo is a Claude Code plugin. Add it, and the `tells` skill loads the rules before UI work, runs `tells fix` and `tells render` after, and settles what's left from the subject instead of stopping to ask.
+
+```
+/plugin marketplace add bubb4rd/tells
+/plugin install tells@tells
+```
+
+## FAQ
+
+<details>
+<summary><b>Will it flag my own design system?</b></summary>
+
+It flags defaults, not choices. If a tell is right for your subject, a status pill on a live feed or glass over map tiles, allow it with `tells-ok` and the reason. The reason is the point: it's the difference between a choice and a habit.
+
+</details>
+
+<details>
+<summary><b>Does <code>tells fix</code> change how my UI looks?</b></summary>
+
+Only where a rule has one right answer. Pills get your radius and overshooting easing settles. Transitions keep animating what they animated before, now by name. Everything else is reported, not rewritten. Run it with `--dry-run` first to see the changes.
+
+</details>
+
+<details>
+<summary><b>Does it understand Tailwind?</b></summary>
+
+Yes. Utilities like `rounded-full`, `tracking-widest uppercase`, `bg-indigo-500`, `backdrop-blur`, `animate-pulse` and `transition-all` are checked alongside plain CSS, and `tells fix` writes Tailwind back: `transition-[color,max-width]`, `rounded-md`.
+
+</details>
+
+<details>
+<summary><b>Why not ask a model to judge the design?</b></summary>
+
+In testing, LLM judges marked down plain, finished UI as "generic" and fell for polish the rules ban. The linters check what can be checked. Taste is measured separately, with blind picks: see [`taste.md`](playbook/taste.md).
+
+</details>
 
 ## Contributing
 
-New tells, false positives and better fixes are all welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+New tells, false positives and better fixes are all welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and the issue forms. To report a security problem, see [SECURITY.md](SECURITY.md).
+
+```sh
+npm test                  # every rule fires on its fixture; the clean page stays clean
+npm run docs:rules        # regenerate the rule tables in this README
+npm run shots             # re-render docs/assets from docs/shots (needs Chrome)
+```
 
 ## License
 

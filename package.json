@@ -1,17 +1,24 @@
 {
   "name": "tells",
   "version": "0.1.0",
-  "description": "Find the marks of default, AI-generated UI: a rule set, a static linter and a rendered audit.",
+  "description": "Find the marks of default, AI-generated UI: a rule set, two linters and a fixer.",
   "type": "module",
   "private": true,
   "license": "MIT",
+  "homepage": "https://github.com/bubb4rd/tells#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bubb4rd/tells.git"
+  },
+  "bugs": { "url": "https://github.com/bubb4rd/tells/issues" },
   "bin": { "tells": "bin/tells.mjs" },
   "files": ["bin", "src", "rules", "playbook", "skills", ".claude-plugin"],
   "engines": { "node": ">=20" },
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "docs:rules": "node scripts/rules-table.mjs",
-    "lint:self": "node bin/tells.mjs check test/fixtures/clean"
+    "lint:self": "node bin/tells.mjs check test/fixtures/clean",
+    "shots": "node scripts/shots.mjs"
   },
   "keywords": ["design", "lint", "ui", "ai", "slop", "accessibility", "claude-code"]
 }
