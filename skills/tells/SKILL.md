@@ -15,14 +15,15 @@ For a new design system, follow `TELLS/playbook/design-system.md`.
 
 ## After you build
 
-Run both linters on what you changed and fix every error before you call the work done:
+Fix the mechanical hits, then run both linters on what you changed and fix every error before you call the work done:
 
 ```sh
-node TELLS/bin/tells.mjs check <paths>
+node TELLS/bin/tells.mjs fix <paths>
 node TELLS/bin/tells.mjs render <html files or http URLs>
 ```
 
-- `check` reads source (HTML, CSS, JSX, TSX, MDX). `render` loads pages in headless Chrome at 1440, 960 and 390px and checks contrast, overflow, tap targets, headings and broken images.
+- `fix` rewrites the hits that have one right answer (`transition: all`, pills, bounce easing, arrow suffixes, a missing reduced-motion guard, placeholder names), then prints the same report as `check` for what's left. Everything left needs a decision from the subject. Make it yourself; don't stop to ask.
+- `check` reads source (HTML, CSS, JSX, TSX, MDX). It's the same report without the rewrites. `render` loads pages in headless Chrome at 1440, 960 and 390px and checks contrast, overflow, tap targets, headings and broken images.
 - If a hit is right for this subject, allow it with `tells-ok: <rule-id> <reason>` in a comment on the same line or the line above. The reason must come from the subject, not "it looks nice".
 - Don't silence a rule to get a clean run. A clean run with no exceptions is better than a clean run with many.
 

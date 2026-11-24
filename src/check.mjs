@@ -89,7 +89,7 @@ function parseArgs(argv) {
     if (arg.startsWith("--")) {
       const [k, ...rest] = arg.slice(2).split("=");
       if (rest.length) flags[k] = rest.join("=");
-      else if (k === "rule" && argv[i + 1] && !argv[i + 1].startsWith("--")) flags[k] = argv[++i];
+      else if ((k === "rule" || k === "radius") && argv[i + 1] && !argv[i + 1].startsWith("--")) flags[k] = argv[++i];
       else flags[k] = true;
     } else {
       positional.push(arg);
@@ -373,9 +373,29 @@ function checkCaps(ctx, body, offset, selector = null) {
   else ctx.emit("uppercase", ctx.lineOf(at), ctx.colOf(at), sel);
 }
 
+/** A full radius on a square box draws a circle (icon button, dot, avatar), which isn't a pill. */
+function isSquareClasses(line) {
+  if (/(?:^|[\s"'`])(?:size-\S+|aspect-square)(?=[\s"'`]|$)/.test(line)) return true;
+  const w = /(?:^|[\s"'`])w-(\S+?)(?=[\s"'`]|$)/.exec(line);
+  const h = /(?:^|[\s"'`])h-(\S+?)(?=[\s"'`]|$)/.exec(line);
+  return Boolean(w && h && w[1] === h[1] && w[1] !== "full" && w[1] !== "auto");
+}
+
+function isSquareBlock(body) {
+  if (/aspect-ratio\s*:\s*1(?:\s*\/\s*1)?\s*(?:[;}]|$)/.test(body)) return true;
+  const w = /(?:^|[\s;{])width\s*:\s*([^;}\n]+)/.exec(body);
+  const h = /(?:^|[\s;{])height\s*:\s*([^;}\n]+)/.exec(body);
+  return Boolean(w && h && w[1].trim() === h[1].trim() && !/auto|%|fit|content/.test(w[1]));
+}
+
 function detectBlocks(ctx) {
   const code = ctx.ext === ".tsx" || ctx.ext === ".jsx" ? ctx.code.replace(/\$\{[^{}]*\}/g, blank) : ctx.code;
   for (const block of innermostBlocks(code)) {
+    if (isSquareBlock(block.body)) {
+      const first = ctx.lineOf(block.offset);
+      const last = ctx.lineOf(block.offset + block.body.length);
+      for (let l = first; l <= last; l++) ctx.circleLines.add(l);
+    }
     checkCaps(ctx, block.body, block.offset, block.selector);
     if (/(?:^|[\s.,>+~-])(?:eyebrow|kicker|overline)\b/i.test(block.selector) && !UPPER_RE.test(block.body)) {
       const at = block.offset - 1;
@@ -437,7 +457,8 @@ function detectCodeLines(ctx) {
     }
     // pills
     for (const r of line.matchAll(/(?:border(?:-[a-z-]+)?-radius|--[\w-]*radius[\w-]*|border\w*Radius)\s*:\s*([^;{}\n]+)/gi)) {
-      const v = r[1];
+      // a JSX style object continues after the comma; CSS radii only have commas inside var()
+      const v = /Radius/.test(r[0]) ? r[1].split(",")[0] : r[1];
       const big =
         /var\(--[\w-]*(?:pill|capsule|full)[\w-]*/i.test(v) ||
         [...v.matchAll(/(\d+(?:\.\d+)?)(px|rem|em|vh|vw|vmin|vmax|dvh|svh)?/g)].some(([, n, u]) => {
@@ -447,12 +468,12 @@ function detectCodeLines(ctx) {
           if (u === "rem" || u === "em") return x >= 6;
           return x >= 50;
         });
-      if (big) {
+      if (big && !ctx.circleLines.has(i)) {
         ctx.emit("pill-radius", i, r.index);
         break;
       }
     }
-    if ((m = /\brounded-full\b/.exec(line)) && !/avatar/i.test(line)) ctx.emit("pill-radius", i, m.index, "rounded-full");
+    if ((m = /\brounded-full\b/.exec(line)) && !/avatar/i.test(line) && !isSquareClasses(line)) ctx.emit("pill-radius", i, m.index, "rounded-full");
     // ambient motion
     if (
       (m = /animation(?:-iteration-count)?\s*:[^;{}\n]*\binfinite\b|animation(?:IterationCount)?\s*:\s*["'`][^"'`]*\binfinite\b|\banimate-(?:pulse|ping|spin|bounce)\b|iterations\s*:\s*Infinity/.exec(line))
@@ -556,7 +577,8 @@ function detectVisible(ctx) {
     if ((m = PLACEHOLDER_COPY_RE.exec(text))) emit("placeholder-copy", m.index);
     for (const seg of segments) {
       const at = Math.max(0, text.indexOf(seg));
-      if (/[→⟶➔➜➝➞]\s*$|\S\s*[↗»›]\s*$|^[→⟶➔➜]\s+\D/.test(seg) && !/\d\s*→\s*\d/.test(seg)) emit("arrow-suffix", at);
+      // a lone arrow is a key or an icon (<kbd>→</kbd>), not a suffix
+      if (/\S\s*[→⟶➔➜➝➞↗»›]\s*$|^[→⟶➔➜]\s+\D/.test(seg) && !/\d\s*→\s*\d/.test(seg)) emit("arrow-suffix", at);
       if (/^(?:§\s*)?\d{2}\s*(?:\/|\||—|–)\s+\S|^§\s*\d|^\d{2}\.\s+\p{Lu}/u.test(seg)) emit("numbered-section", at);
       if (/^[—–]\s*\p{Lu}{3,}|^[●•·]\s*\p{Lu}{2,}/u.test(seg)) emit("eyebrow-copy", at);
       if (STATUS_BADGE_RE.test(seg)) emit("status-theatre", at);
@@ -595,8 +617,8 @@ function snippetFrom(line, col, width = 96) {
   return lead + body + tail;
 }
 
-function auditFile(file, onlyRule) {
-  const raw = fs.readFileSync(file, "utf8");
+function auditFile(file, onlyRule, source = null) {
+  const raw = source ?? fs.readFileSync(file, "utf8");
   const ext = path.extname(file);
   const rel = display(file);
   const rawLines = raw.split("\n");
@@ -643,6 +665,7 @@ function auditFile(file, onlyRule) {
     lineOf,
     colOf,
     italicClasses: new Set(),
+    circleLines: new Set(),
     firstMotion: null,
     emit(rule, line, col, message = null, fromVisible = false) {
       if (onlyRule && rule !== onlyRule) return;
@@ -893,4 +916,4 @@ export function run(argv = process.argv.slice(2)) {
   if (hits.some((h) => h.severity === "error" || (flags.strict && h.severity === "warn"))) process.exitCode = 1;
 }
 
-export { RULES };
+export { RULES, RULE_BY_ID, auditFile, walk, display, printReport, makePaint, summarize, parseArgs };

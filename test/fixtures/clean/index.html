@@ -7,14 +7,17 @@
   body { font-family: "Söhne", Georgia, serif; color: #1c1a17; background: #fbfaf7; }
   .ticket { border: 1px solid #d9d4ca; border-radius: 6px; padding: 16px; }
   .btn { background: #b4441c; color: #fff; border-radius: 4px; transition: background-color 120ms ease-out; }
+  .status { width: 8px; height: 8px; border-radius: 999px; background: #3f7d4e; }
 </style>
 </head>
 <body>
   <h1>Repair queue</h1>
   <div class="ticket">
-    <h2>Rear derailleur won't index</h2>
+    <h2><span class="status"></span> Rear derailleur won't index</h2>
+    <button class="size-7 rounded-full" aria-label="Assign mechanic">PR</button>
     <p>Priya Raman dropped this off Tuesday. Needs a new cable and housing.</p>
     <button class="btn">Mark ready for pickup</button>
   </div>
+  <p><kbd>←</kbd> <kbd>→</kbd> move between tickets</p>
 </body>
 </html>
