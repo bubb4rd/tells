@@ -39,3 +39,13 @@ test("clean page has no hits", { skip }, () => {
   assert.deepEqual(out.hits, []);
   assert.equal(code, 0);
 });
+
+test("pages load assets from sibling folders inside the cwd", { skip }, () => {
+  const { out } = render(path.join(here, "fixtures", "render-paths", "page", "index.html"));
+  assert.ok(!out.hits.some((h) => h.rule === "broken-image"), out.hits.map((h) => `${h.rule}: ${h.detail ?? ""}`).join("; "));
+});
+
+test("contrast is measured after entrance animations settle", { skip }, () => {
+  const { out } = render(path.join(here, "fixtures", "render-settled", "fade-in.html"));
+  assert.ok(!out.hits.some((h) => h.rule === "low-contrast"), out.hits.map((h) => h.rule).join(", "));
+});

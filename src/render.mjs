@@ -671,7 +671,7 @@ async function auditTarget(browser, url, label, widths, onlyRule) {
       await browser.send(
         "Runtime.evaluate",
         {
-          expression: "(async () => { if (document.fonts && document.fonts.ready) await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]); await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); })()",
+          expression: "(async () => { if (document.fonts && document.fonts.ready) await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]); for (const a of (document.getAnimations ? document.getAnimations() : [])) { try { a.finish(); } catch {} } await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); })()", // finish entrance animations so contrast is measured on the settled page
           awaitPromise: true,
         },
         sessionId
@@ -871,7 +871,7 @@ export async function run(argv = process.argv.slice(2)) {
   }
 
   const chromePath = findChrome();
-  const serveRoot = needsServer ? commonDir(targets.filter((t) => t.kind === "file").map((t) => t.file)) : null;
+  const serveRoot = needsServer ? serveRootFor(targets.filter((t) => t.kind === "file").map((t) => t.file)) : null;
   const srv = needsServer ? await startServer(serveRoot) : null;
   const browser = new CdpBrowser(chromePath);
   browser.start();
@@ -921,7 +921,13 @@ export async function run(argv = process.argv.slice(2)) {
   if (hits.some((h) => h.severity === "error" || (flags.strict && h.severity === "warn"))) process.exitCode = 1;
 }
 
-// Serve from the deepest folder that holds every target, so paths outside the cwd still load.
+// Serve from the cwd when every target is inside it, so pages can load siblings like ../assets/x.svg.
+// Otherwise serve from the deepest folder that holds every target, so paths outside the cwd still load.
+function serveRootFor(files) {
+  const inside = (f) => !path.relative(ROOT, f).startsWith("..") && !path.isAbsolute(path.relative(ROOT, f));
+  return files.every(inside) ? ROOT : commonDir(files);
+}
+
 function commonDir(files) {
   const parts = files.map((f) => path.dirname(f).split(path.sep));
   const first = parts[0];
