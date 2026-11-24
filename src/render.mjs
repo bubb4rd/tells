@@ -198,6 +198,11 @@ class CdpBrowser {
     });
   }
 
+  /** Chrome can take well over 15s to start on a cold CI runner. Wait once, generously, before any page work. */
+  ready(timeoutMs = 45000) {
+    return this.send("Browser.getVersion", {}, undefined, timeoutMs);
+  }
+
   _onData(chunk) {
     this.buf = Buffer.concat([this.buf, chunk]);
     let idx;
@@ -883,6 +888,7 @@ export async function run(argv = process.argv.slice(2)) {
 
   const rawHits = [];
   try {
+    await browser.ready();
     for (const t of targets) {
       const url = t.kind === "url" ? t.url : `${srv.baseUrl}/${path.relative(serveRoot, t.file).split(path.sep).map(encodeURIComponent).join("/")}`;
       const found = await auditTarget(browser, url, t.label, t.widths, onlyRule);
