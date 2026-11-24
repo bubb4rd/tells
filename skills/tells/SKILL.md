@@ -29,6 +29,13 @@ node TELLS/bin/tells.mjs render <html files or http URLs>
 
 Then review against `TELLS/playbook/review-checklist.md`, which covers what the linters can't check.
 
-## Judging
+## Choosing between directions
 
-Don't pick between design directions yourself, and don't ask another model to. LLM judges mark down plain, finished UI as "generic". Show the options to a person, ideally as blind pairs. See `TELLS/playbook/taste.md`.
+Don't stop to ask the user to pick, and don't ask a model which looks better: LLM judges mark down plain, finished UI as "generic". Choose with checks instead, in this order:
+
+1. **Gate.** Run `fix` and `render` on every candidate. Drop any with errors left that you can't settle from the subject.
+2. **Prefer the product.** Keep the candidates that lead with the product itself (its screens, its data, its main task) over ones built around a metaphor. In blind tests, metaphor-led pages won 0 of 41 against professional work; product-led ones won about half.
+3. **Prefer fewer exceptions.** Among those left, keep the one with the fewest `tells-ok` exceptions.
+4. **Break ties on distance.** If it's still close, keep the one furthest from your last build and from the cliché clusters in `TELLS/rules/anti-slop.md`. Close calls are coin flips even for a human picker, so don't spend time on them.
+
+Report the winner, what ruled out the others, and every exception it keeps. Bring in a person only when the user asks for one. See `TELLS/playbook/taste.md` for the evidence.

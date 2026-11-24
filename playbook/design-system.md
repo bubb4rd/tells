@@ -1,6 +1,6 @@
 # Design system prompt
 
-Copy everything below the line into the agent. Fill in the **Seed** first. If you leave it blank, the agent proposes subjects and stops.
+Copy everything below the line into the agent. Fill in the **Seed** first. If you leave the subject blank, the agent picks one and says why. It runs start to finish unless the seed asks it to stop for a person.
 
 **Running several at once:** give every agent this same template.
 - To compare models, give them the **same seed**.
@@ -19,9 +19,9 @@ Before anything else, read `rules/anti-slop.md`. Treat it as a hard constraint, 
 - **Who uses it, and for what job:** {the person and the task they repeat}
 - **A source of character outside the web:** {optional: a material, place, document, instrument, era, object}
 - **One tension:** {optional: two qualities that pull against each other, e.g. "archival but fast", "playful but used under stress"}
-- **Unattended?** {yes/no. If yes, don't stop at the gate; pick the direction furthest from every cliché cluster and say why}
+- **Stop for a person?** {optional: "at the comps" to have someone choose the direction. Leave blank to run unattended, the default.}
 
-If the subject is blank, propose three concrete subjects (product + user + job, one line each) and stop.
+If the subject is blank, write three concrete subjects (product + user + job, one line each), pick the one with the most specific job, and carry on.
 
 ## Why the first attempts fail (so you don't repeat it)
 
@@ -90,7 +90,7 @@ Each direction is anchored to 1–2 named references from the subject's register
 
 **Then mock them up visually.** One rough first screen per direction (`comps/a.html`, `b.html`, `c.html`), real content, the signature moment present. Choosing between descriptions favours the safest idea; choosing between pictures doesn't. Recommend one, saying why.
 
-**Gate:** unless the seed says unattended, stop here and show the three comps. Don't build the system.
+**Choose:** run `tells fix` and `tells render` on the three comps and choose the way the skill does: drop any with errors you can't settle, prefer product-led over metaphor-led, then fewest exceptions, then furthest from your last build. Write the reason in one line and build it. Stop here and show the comps only if the seed says to.
 
 ## Phase 4: Build
 
@@ -127,7 +127,7 @@ Put the system in its own folder. Name it after what it's for, not "Adjective + 
 ## Phase 5: Look, cut, repeat (at least 2 rounds)
 
 1. **Screenshot** every screen with headless Chrome at 1440×900, 1280×800 and 390×844. Save them to `shots/round-N/`. Open them and look.
-2. **Run `tells check <system> --strict` and `tells render <system>/screens`.** Remove every hit, or keep it with a `tells-ok: <rule-id> <reason>` comment and list it in `DESIGN.md`. A round passes only when both exit 0.
+2. **Run `tells fix <system> --strict` and `tells render <system>/screens`.** `fix` clears the hits with one right answer. Remove every other hit, or keep it with a `tells-ok: <rule-id> <reason>` comment and list it in `DESIGN.md`. A round passes only when both exit 0.
 3. **Answer in `critique.md`, per round:**
    - Cover the logo. Could this be any other product?
    - Put it next to the last system you built. Could it be its sibling? If so, which print-brief line failed to make it different?
@@ -138,7 +138,7 @@ Put the system in its own folder. Name it after what it's for, not "Adjective + 
    - What would a senior designer remove?
 4. **Fix**, including removing at least one thing per round. Then repeat.
 5. **Run `playbook/review-checklist.md` on the final images** (framing, people, one identity location, status marks, numbers that add up, every width).
-6. **Blind-test the round** with whoever owns the taste (`playbook/taste.md`). Their win rate against a reference corpus decides what survives, not this critique.
+6. **Don't wait for a blind test.** Blind picks (`playbook/taste.md`) are how the rules are found and checked, run by maintainers between releases, not a step in every build. If the seed asks for a person, show them the final shots here.
 
 ## Report
 
