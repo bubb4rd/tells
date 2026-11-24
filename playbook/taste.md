@@ -56,15 +56,27 @@ Showing a vision model the nearest liked and rejected references, in place of a 
 
 Use AI review for what can be checked: alignment, states, contrast, numerals, and the rules in `tells check` and `tells render`. Never let an AI score decide between design directions.
 
-### A model can make the first cut
+### A model can't make the cut yet
 
-A frozen vision embedding (SigLIP-So400M, screenshots padded to square, trained only on the reference corpus) predicted 69.4% of the calibration pairs zero-shot. A probe combining it with DINOv2 was right 96.2% of the time on its confident, wide-gap calls. That's good enough to drop obvious losers before a human picks, and not good enough to rank close calls.
+On reference work, a trained model looked promising. A frozen vision embedding (SigLIP-So400M, screenshots padded to square, trained only on the reference corpus) predicted 69.4% of the 98 calibration pairs zero-shot, and a probe combining it with DINOv2 was right 96.2% of the time on its confident, wide-gap calls. Those pairs were mostly pro work against pro work.
 
-Three cautions from the same tests:
+The job that matters is choosing between generated variants, so the same model was tested on 15 generated rounds it never saw, 382 same-round picks:
 
+| Trained on | Agrees with the picker | On wide-gap pairs | Round winner survives a top-half cut | In rounds with a clear winner |
+|---|---|---|---|---|
+| Reference work only | 59.9% | 58.9% | 9 of 15 | 4 of 9 |
+| Everything except the round | 44.8% | 31.6% | 7 of 15 | 2 of 9 |
+| The picker, against themselves | | 100% | | |
+
+A random cut keeps the winner about half the time. On the pairs where the picker never changed their mind, the model was close to a coin flip, and with the picker's own drafts in training it picked the opposite two times in three. It doesn't drop obvious losers, so don't put it between a generator and a person, or in place of one.
+
+What held from the same tests:
+
+- **Don't train on your own drafts.** That's the second row: the model learns "looks like an earlier losing draft" and marks down later winners.
 - **Pad, don't crop or squash.** Default preprocessing slices off sidebars and warps type. Padding gained 4.6 to 7.4 points.
-- **Don't train on your own drafts.** A probe trained with early losing drafts learned "looks like this product, so it's bad" and then marked down that product's later winners.
 - **Models fall for the gloss you've banned.** Polished purple-glow dark SaaS templates and washed-out nature backdrops fooled them. Keep the static rules as the hard check on those looks, whatever a model says.
+
+Choose between variants with checks instead: the rules, then product-led over metaphor-led, then fewest exceptions, then distance from your house style (`tells same`). Most remaining calls are close, and close calls are coin flips even for the picker.
 
 ---
 
