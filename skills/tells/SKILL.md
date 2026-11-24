@@ -43,4 +43,6 @@ Don't stop to ask the user to pick, and don't ask a model which looks better: LL
 
 `node TELLS/bin/tells.mjs pick <variant folders> --against <past designs>` runs that order for you. To build the variants too, unattended, use `node TELLS/bin/tells.mjs make "<brief>"`.
 
+If `pick` calls clean variants a tie, either is fine for an unattended run. That's polish the checks can't see yet, so name the tie in your report rather than inventing a reason.
+
 Report the winner, what ruled out the others, and every exception it keeps. Bring in a person only when the user asks for one. See `TELLS/playbook/taste.md` for the evidence.

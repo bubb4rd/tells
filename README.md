@@ -171,10 +171,10 @@ tells make "a shift handover screen for night nurses on a hospital ward" --again
 
 1. **Prompts.** One per variant (four by default), each with a different angle on the subject: its data, its documents, its place, its people, its rhythm or its region. Every angle leads with the product; none is a metaphor.
 2. **Build.** An agent per variant, in parallel, each in its own folder. The default is Claude Code (`claude -p`, limited to reading, writing and running `node`). `--agent` takes any command that reads a prompt on stdin.
-3. **Fix and pick.** `tells fix` on every variant, then `tells pick`: fewest errors, then fewest written exceptions, then off the cliché clusters and your house style, then fewest warnings.
+3. **Fix and pick.** `tells fix` on every variant, then `tells pick`: fewest rules broken, then fewest written exceptions, then off the cliché clusters and your house style. Warnings are shown but don't decide.
 4. **Report.** `REPORT.md` has the ranking, why each loser lost, and the winner. Each variant keeps its prompt, the agent's log and its `NOTES.md`, which says where each colour comes from.
 
-`tells pick` also works on its own, on variants from anywhere. It doesn't use a taste model. One was tested on 15 generated rounds held out of training and did no better than chance at choosing between variants ([`taste.md`](playbook/taste.md#a-model-cant-make-the-cut-yet)).
+`tells pick` also works on its own, on variants from anywhere. On seven past rounds it agreed with the picker on 65% of the pairs it decided, and a top-half cut kept the picker's winner in 5.2 of 7 rounds, against 3.8 at random. It's good at cutting default-looking work. It can't yet choose between clean refinements of one design, and calls those ties. It doesn't use a taste model: one was tested on 15 generated rounds held out of training and did no better than chance ([`taste.md`](playbook/taste.md#checks-choose-some-rounds-not-all)).
 
 ## Rules
 

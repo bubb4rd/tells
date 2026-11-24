@@ -16,7 +16,7 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { display, makePaint, parseArgs } from "./check.mjs";
-import { measure, rank, printRanking } from "./pick.mjs";
+import { measure, rank, printRanking, ruleCount } from "./pick.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TELLS = path.resolve(HERE, "..");
@@ -80,15 +80,15 @@ function report({ brief, out, ranked, runs }) {
   const rows = ranked.map((r) => {
     const v = path.basename(r.variant);
     const run = runs[v];
-    return `| ${r.rank} | [${v}](${v}/index.html) | ${r.errors.length} | ${r.exceptions} | ${r.lands.length ? r.lands.join(", ") : "no"} | ${r.houseOf ? `${r.houseAxes}/${r.houseOf}` : "–"} | ${r.warnings.length} | ${run?.seconds ?? "–"}s |`;
+    return `| ${r.rank} | [${v}](${v}/index.html) | ${ruleCount(r.errors)} | ${r.exceptions} | ${r.lands.length ? r.lands.join(", ") : "no"} | ${r.houseOf ? `${r.houseAxes}/${r.houseOf}` : "–"} | ${r.warnings.length} | ${run?.seconds ?? "–"}s |`;
   });
   const win = ranked[0];
   return [
     `# ${brief}`,
     "",
-    `Winner: **${path.basename(win.variant)}** ([index.html](${path.basename(win.variant)}/index.html)${win.notes ? `, [notes](${path.basename(win.variant)}/NOTES.md)` : ""})${win.errors.length ? `. It still has ${win.errors.length} error${win.errors.length === 1 ? "" : "s"}; no variant was clean.` : "."}`,
+    `Winner: **${path.basename(win.variant)}** ([index.html](${path.basename(win.variant)}/index.html)${win.notes ? `, [notes](${path.basename(win.variant)}/NOTES.md)` : ""})${win.errors.length ? `. It still breaks ${ruleCount(win.errors)} rule${ruleCount(win.errors) === 1 ? "" : "s"}; no variant was clean.` : "."}`,
     "",
-    "| # | Variant | Errors | Exceptions | Default look | House axes | Warnings | Time |",
+    "| # | Variant | Rules broken | Exceptions | Default look | House axes | Warnings | Time |",
     "|---|---|---|---|---|---|---|---|",
     ...rows,
     "",
@@ -100,7 +100,7 @@ function report({ brief, out, ranked, runs }) {
     "",
     ...ranked.map((r) => `- **${path.basename(r.variant)}:** ${ANGLES[(Number(path.basename(r.variant).slice(1)) - 1) % ANGLES.length]}`),
     "",
-    `Chosen by \`tells pick\`: fewest errors, then fewest written exceptions, then off the cliché clusters and your house style, then fewest warnings. No taste model; see playbook/taste.md.`,
+    `Chosen by \`tells pick\`: fewest rules broken, then fewest written exceptions, then off the cliché clusters and your house style. Warnings are shown but don't decide. No taste model; see playbook/taste.md.`,
     "",
   ].join("\n");
 }

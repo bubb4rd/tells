@@ -6,12 +6,13 @@
  *
  * A variant is a folder (or one HTML file). Each one gets `tells check`, `tells render` and
  * `tells same` (against your past designs, never against the other variants), then they're ranked:
- *   1. fewest errors left          (the gate)
+ *   1. fewest rules broken at error level, each rule counted once
  *   2. fewest written exceptions   (tells-ok)
  *   3. off the cliché clusters and your house style, then fewest house axes matched
- *   4. fewest warnings
- * A trained taste model isn't used: on held-out generated rounds it did no better than chance
- * (playbook/taste.md). Close calls are coin flips even for a human picker, so a tie is reported as one.
+ * Warnings are reported but don't decide, and a rule counts once however many elements break it:
+ * on seven past rounds, raw hit counts and warnings both pushed the ranking away from the picker's.
+ * A trained taste model isn't used either: on held-out generated rounds it did no better than chance
+ * (playbook/taste.md). What's left is a tie, reported as one.
  * Exit 1 when the winner still has errors.
  */
 import fs from "node:fs";
@@ -70,12 +71,13 @@ export function measure(variant, { render = true, against = [], house = null, la
   };
 }
 
+export const ruleCount = (hits) => new Set(hits.map((h) => `${h.tool}:${h.rule}`)).size;
+
 const KEYS = [
-  ["errors left", (m) => m.errors.length],
+  ["rules broken", (m) => ruleCount(m.errors)],
   ["written exceptions", (m) => m.exceptions],
   ["lands on a default look", (m) => m.lands.length],
   ["house axes matched", (m) => m.houseAxes],
-  ["warnings", (m) => m.warnings.length],
 ];
 
 const list = (hits) => {
@@ -90,13 +92,12 @@ function reason(m, winner) {
     const a = f(m);
     const b = f(winner);
     if (a === b) continue;
-    if (name === "errors left") return `${a} error${a === 1 ? "" : "s"} left (${list(m.errors)})`;
+    if (name === "rules broken") return `${a} rule${a === 1 ? "" : "s"} broken, against ${b} (${list(m.errors)})`;
     if (name === "written exceptions") return `${a} written exception${a === 1 ? "" : "s"}, against ${b}`;
     if (name === "lands on a default look") return `lands on ${m.lands.join(" and ")}`;
     if (name === "house axes matched") return `closer to your house style: ${a} of ${m.houseOf} axes, against ${b}`;
-    return `${a} warning${a === 1 ? "" : "s"}, against ${b} (${list(m.warnings)})`;
   }
-  return "tied on every check: a close call, either is fine";
+  return "tied on every check that decides: a close call, either is fine";
 }
 
 export function rank(measured) {
@@ -110,15 +111,15 @@ export function rank(measured) {
 
 export function printRanking(ranked, paint, out = console.log) {
   const w = Math.max(...ranked.map((r) => r.label.length), 7);
-  const lines = [paint.bold(`${"#".padEnd(3)}${"variant".padEnd(w + 2)}${"errors".padStart(7)}${"except".padStart(8)}${"default".padStart(9)}${"house".padStart(7)}${"warn".padStart(6)}`)];
+  const lines = [paint.bold(`${"#".padEnd(3)}${"variant".padEnd(w + 2)}${"rules".padStart(7)}${"except".padStart(8)}${"default".padStart(9)}${"house".padStart(7)}${"warn".padStart(6)}`)];
   for (const r of ranked) {
     const house = r.houseOf ? `${r.houseAxes}/${r.houseOf}` : "–";
-    const row = `${String(r.rank).padEnd(3)}${r.label.padEnd(w + 2)}${String(r.errors.length).padStart(7)}${String(r.exceptions).padStart(8)}${(r.lands.length ? "yes" : "no").padStart(9)}${house.padStart(7)}${String(r.warnings.length).padStart(6)}`;
+    const row = `${String(r.rank).padEnd(3)}${r.label.padEnd(w + 2)}${String(ruleCount(r.errors)).padStart(7)}${String(r.exceptions).padStart(8)}${(r.lands.length ? "yes" : "no").padStart(9)}${house.padStart(7)}${String(r.warnings.length).padStart(6)}`;
     lines.push(r.rank === 1 ? paint.green(row) : row);
   }
   lines.push("");
   const [win, ...rest] = ranked;
-  lines.push(`${paint.bold("Winner:")} ${win.label}${win.errors.length ? paint.red(`  (still ${win.errors.length} error${win.errors.length === 1 ? "" : "s"}: ${list(win.errors)})`) : ""}`);
+  lines.push(`${paint.bold("Winner:")} ${win.label}${win.errors.length ? paint.red(`  (still breaks ${ruleCount(win.errors)} rule${ruleCount(win.errors) === 1 ? "" : "s"}: ${list(win.errors)})`) : ""}`);
   for (const r of rest) lines.push(`  ${r.label}: ${r.why}`);
   for (const r of ranked) for (const p of r.problems) lines.push(paint.yellow(`  ${r.label}: ${p}`));
   if (!ranked.some((r) => r.rendered)) lines.push(paint.dim("  Not rendered: contrast, overflow and tap targets weren't checked."));

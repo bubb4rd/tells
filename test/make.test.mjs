@@ -19,7 +19,7 @@ test("pick ranks by errors, then written exceptions, and says why each loser los
   assert.match(winner, /clean$/);
   assert.deepEqual(ranking.map((m) => path.basename(m.variant)), ["clean", "excused", "rough"]);
   assert.match(ranking[1].why, /1 written exception/);
-  assert.match(ranking[2].why, /errors? left .*check:pill-radius/);
+  assert.match(ranking[2].why, /3 rules broken, against 0 .*check:pill-radius/);
   assert.equal(r.status, 0);
 });
 
@@ -52,7 +52,7 @@ test("make builds, fixes, picks and reports with no input after the brief", () =
   assert.equal(r.status, 0, r.stderr);
   const report = readFileSync(path.join(out, "REPORT.md"), "utf8");
   assert.match(report, /Winner: \*\*v2\*\*/);
-  assert.match(report, /\*\*v1:\*\* 1 error left \(check:generic-cta\)/); // fix already took the pill and the arrow
+  assert.match(report, /\*\*v1:\*\* 1 rule broken, against 0 \(check:generic-cta\)/); // fix already took the pill and the arrow
   assert.match(report, /\*\*v3:\*\* 1 written exception/);
   assert.doesNotMatch(readFileSync(path.join(out, "v1", "index.html"), "utf8"), /999px|→/);
 });

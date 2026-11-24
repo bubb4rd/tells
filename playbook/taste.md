@@ -78,6 +78,17 @@ What held from the same tests:
 
 Choose between variants with checks instead: the rules, then product-led over metaphor-led, then fewest exceptions, then distance from your house style (`tells same`). Most remaining calls are close, and close calls are coin flips even for the picker.
 
+### Checks choose some rounds, not all
+
+`tells pick` was run on seven past rounds against the picker's ranking: 43 pairs of variants, in rounds whose source files matched their screenshots (round 13's sources were touched after its shots).
+
+- It decided 20 of the 43 pairs and agreed with the picker on 13 (65%). A top-half cut kept the picker's winner in 5.2 of 7 rounds on average, against 3.8 for a random cut.
+- It decides where variants differ in their defaults: different generators, or a concept against a product. It put the picker's winner first in 3 of the 4 rounds it could rank.
+- It can't separate clean refinements of one system, such as a layout, a hero or a border treatment. In three rounds every variant passed, so it called them all ties, though the picker's winners led by 0.9 to 1.6 BT, which is clear for a person.
+- Two of its choices came from this test. It counts each broken rule once, because raw hit counts from the rendered checks agreed with the picker only 38% of the time (one contrast rule, hit on every element of a busy hero, buried a winner). And warnings don't decide, because they decided pairs against the picker.
+
+So an unattended loop matches the picker at cutting default-looking work. It doesn't yet match them at polishing a design that already passes. That's where a person's pick still earns its time, and where the next checkable rule should come from.
+
 ---
 
 ## Part 2: What held up
