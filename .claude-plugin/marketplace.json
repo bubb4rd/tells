@@ -1,0 +1,12 @@
+{
+  "name": "tells",
+  "owner": { "name": "bubb4rd" },
+  "description": "Rules and linters for the marks of default, AI-generated UI.",
+  "plugins": [
+    {
+      "name": "tells",
+      "source": "./",
+      "description": "Rules and linters for the marks of default, AI-generated UI."
+    }
+  ]
+}

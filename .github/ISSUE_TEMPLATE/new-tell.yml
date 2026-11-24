@@ -1,0 +1,42 @@
+name: New tell
+description: Propose a mark of default UI that tells should name or catch
+labels: [new-tell]
+body:
+  - type: textarea
+    id: tell
+    attributes:
+      label: The tell
+      description: What it looks like, in one or two sentences. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Where you've seen it
+      description: Links or screenshots from at least three unrelated generated screens, and ideally one professional screen that doesn't do it.
+    validations:
+      required: true
+  - type: textarea
+    id: instead
+    attributes:
+      label: What to do instead
+      description: The fix. It should point back to the subject, not to the nearest substitute.
+    validations:
+      required: true
+  - type: dropdown
+    id: checkable
+    attributes:
+      label: Can a linter catch it?
+      options:
+        - Yes, from source (tells check)
+        - Yes, from the rendered page (tells render)
+        - No, it needs judgment
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: pattern
+    attributes:
+      label: Example code
+      description: If it's checkable, a minimal snippet that should fire, and one that shouldn't.
+      render: html

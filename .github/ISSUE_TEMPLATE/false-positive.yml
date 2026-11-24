@@ -1,0 +1,25 @@
+name: False positive
+description: A rule fired on something that isn't a tell
+labels: [false-positive]
+body:
+  - type: input
+    id: rule
+    attributes:
+      label: Rule id
+      placeholder: pill-radius
+    validations:
+      required: true
+  - type: textarea
+    id: snippet
+    attributes:
+      label: Code that triggered it
+      render: html
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it isn't a tell here
+      description: If tells-ok with a reason is the right answer, say why that isn't enough.
+    validations:
+      required: true

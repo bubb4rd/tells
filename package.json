@@ -1,0 +1,17 @@
+{
+  "name": "tells",
+  "version": "0.1.0",
+  "description": "Find the marks of default, AI-generated UI: a rule set, a static linter and a rendered audit.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "bin": { "tells": "bin/tells.mjs" },
+  "files": ["bin", "src", "rules", "playbook", "skills", ".claude-plugin"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/",
+    "docs:rules": "node scripts/rules-table.mjs",
+    "lint:self": "node bin/tells.mjs check test/fixtures/clean"
+  },
+  "keywords": ["design", "lint", "ui", "ai", "slop", "accessibility", "claude-code"]
+}
