@@ -57,6 +57,7 @@ async function screenshot(source, file, { fullPage = false } = {}) {
 
 export async function addReference({ source, name, kind, why, fullPage = false }) {
   if (!kind || !why) throw new Error("a reference needs --kind and --why: say what kind of screen it is and why it's good");
+  if (!isUrl(source) && !fs.existsSync(source)) throw new Error(`${source} doesn't exist.`);
   name = name || nameFor(source);
   const shot = path.join(libDir(), `${name}.png`);
   if (IMAGE.test(source)) {
@@ -136,7 +137,8 @@ export async function run(argv = process.argv.slice(2)) {
     return;
   }
   if (sub === "remove") {
-    if (!removeReference(positional[0])) throw new Error(`no reference named "${positional[0]}"`);
+    if (!positional[0]) throw new Error("usage: tells refs remove <name>. tells refs lists the names.");
+    if (!removeReference(positional[0])) throw new Error(`no reference named "${positional[0]}". tells refs lists the names.`);
     console.log(`Removed ${positional[0]}`);
     return;
   }

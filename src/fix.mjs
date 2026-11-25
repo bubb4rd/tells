@@ -10,7 +10,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { RULE_BY_ID, auditFile, walk, display, printReport, makePaint, summarize, parseArgs } from "./check.mjs";
+import { RULE_BY_ID, auditFile, walk, display, printReport, makePaint, summarize, parseArgs, noSource } from "./check.mjs";
 
 const ROOT = process.cwd();
 const MAX_PASSES = 3;
@@ -281,20 +281,15 @@ function fixFile(file, { onlyRule, radius }) {
 export function run(argv = process.argv.slice(2)) {
   const { positional, flags } = parseArgs(argv);
   const onlyRule = typeof flags.rule === "string" ? flags.rule : null;
-  if (flags.rule && (!onlyRule || !RULE_BY_ID.has(onlyRule))) {
-    console.error(`Error: unknown rule "${onlyRule ?? ""}".`);
-    process.exit(2);
-  }
-  if (onlyRule && !FIXABLE.includes(onlyRule)) {
-    console.error(`Error: "${onlyRule}" has no automatic fix. Fixable: ${FIXABLE.join(", ")}`);
-    process.exit(2);
-  }
+  if (flags.rule && (!onlyRule || !RULE_BY_ID.has(onlyRule))) throw new Error(`unknown rule "${onlyRule ?? ""}".`);
+  if (onlyRule && !FIXABLE.includes(onlyRule)) throw new Error(`"${onlyRule}" has no automatic fix. Fixable: ${FIXABLE.join(", ")}`);
   const radius = typeof flags.radius === "string" ? flags.radius : "6px";
   const dry = Boolean(flags["dry-run"]);
 
   const targets = (positional.length ? positional : ["."]).map((p) => path.resolve(ROOT, p));
   const files = [];
   for (const t of targets) walk(t, files);
+  if (!files.length) throw new Error(noSource(targets));
 
   const changes = [];
   const hits = [];

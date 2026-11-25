@@ -28,21 +28,60 @@ export const MIME = {
   ".otf": "font/otf",
 };
 
-export function findChrome() {
-  const candidates = [
-    process.env.CHROME_PATH,
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/Applications/Chromium.app/Contents/MacOS/Chromium",
-    "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
-    "/usr/bin/google-chrome",
-    "/usr/bin/google-chrome-stable",
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-  ].filter(Boolean);
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
+/**
+ * The Chrome, Chromium or Edge binary to drive. CHROME_PATH wins, and must exist: a wrong one is an error,
+ * not a quiet fall back to another browser. Then the usual install paths, then the PATH.
+ */
+export function findChrome({ env = process.env, platform = process.platform, exists = fs.existsSync } = {}) {
+  if (env.CHROME_PATH) {
+    if (exists(env.CHROME_PATH)) return env.CHROME_PATH;
+    throw new Error(`CHROME_PATH is ${env.CHROME_PATH}, and nothing is there. Point it at the Chrome, Chromium or Edge binary.`);
   }
-  throw new Error("Could not find Chrome/Chromium binary. Set CHROME_PATH=/path/to/chrome.");
+  const win = (base, rest) => (base ? path.win32.join(base, rest) : null);
+  const installed = {
+    darwin: [
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      "/Applications/Chromium.app/Contents/MacOS/Chromium",
+      "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+      "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+      "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    ],
+    win32: [
+      win(env.PROGRAMFILES, "Google\\Chrome\\Application\\chrome.exe"),
+      win(env["PROGRAMFILES(X86)"], "Google\\Chrome\\Application\\chrome.exe"),
+      win(env.LOCALAPPDATA, "Google\\Chrome\\Application\\chrome.exe"),
+      win(env["PROGRAMFILES(X86)"], "Microsoft\\Edge\\Application\\msedge.exe"),
+      win(env.PROGRAMFILES, "Microsoft\\Edge\\Application\\msedge.exe"),
+    ],
+  }[platform] ?? ["/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser", "/snap/bin/chromium"];
+  const names = platform === "win32" ? ["chrome.exe", "msedge.exe"] : ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "brave-browser"];
+  const sep = platform === "win32" ? ";" : ":";
+  const join = platform === "win32" ? path.win32.join : path.posix.join;
+  const onPath = (env.PATH ?? env.Path ?? "").split(sep).filter(Boolean).flatMap((dir) => names.map((n) => join(dir, n)));
+  const found = [...installed, ...onPath].find((c) => c && exists(c));
+  if (found) return found;
+  throw new Error("couldn't find Chrome, Chromium or Edge in the usual places or on your PATH. Install one, or set CHROME_PATH to its binary.");
+}
+
+/**
+ * Load `url` in a tab and wait for its load event. Throws when the page can't be loaded or answers 4xx/5xx,
+ * so Chrome's error page or a 404 page is never audited as if it were the page. With `lenient`, a load event
+ * that never comes (a request that hangs) isn't fatal; the page is read as it stands.
+ */
+export async function navigate(browser, sessionId, url, { timeout = 15000, lenient = false } = {}) {
+  const loaded = browser.onceEvent("Page.loadEventFired", sessionId, timeout);
+  loaded.catch(() => {}); // settled below, or abandoned when the navigation fails
+  const nav = await browser.send("Page.navigate", { url }, sessionId, timeout);
+  if (nav.errorText) throw new Error(`couldn't load ${url} (${nav.errorText})`);
+  // A same-document navigation (only the #hash changed) fires no load event.
+  if (nav.loaderId) await (lenient ? loaded.catch(() => null) : loaded);
+  const { result } = await browser.send(
+    "Runtime.evaluate",
+    { expression: "performance.getEntriesByType('navigation')[0]?.responseStatus ?? 0", returnByValue: true },
+    sessionId,
+    timeout
+  );
+  if (result?.value >= 400) throw new Error(`${url} answered HTTP ${result.value}`);
 }
 
 export function startServer(rootDir) {
@@ -223,8 +262,11 @@ export class CdpBrowser {
   }
 }
 
+// Fonts, then finished animations, then two frames. Headless Chrome sometimes stops producing frames for a tab
+// partway through a long run; requestAnimationFrame then never fires, so the frame wait is capped at 250ms.
+// The audits read layout directly, which forces it, so they don't need the frame itself.
 export const SETTLE_EXPR =
-  "(async () => { if (document.fonts && document.fonts.ready) await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]); for (const a of (document.getAnimations ? document.getAnimations() : [])) { try { a.finish(); } catch {} } await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); })()";
+  "(async () => { if (document.fonts && document.fonts.ready) await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]); for (const a of (document.getAnimations ? document.getAnimations() : [])) { try { a.finish(); } catch {} } await Promise.race([new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))), new Promise(r => setTimeout(r, 250))]); })()";
 
 /**
  * Headless Chrome follows the machine's appearance, so on a Mac in dark mode every page that honours
@@ -234,10 +276,7 @@ export const SETTLE_EXPR =
 export const THEMES = ["light", "dark"];
 export function themeOf(flags) {
   const t = flags?.theme === undefined || flags.theme === true ? "light" : String(flags.theme).toLowerCase();
-  if (!THEMES.includes(t)) {
-    console.error(`Error: --theme must be ${THEMES.join(" or ")}, not "${flags.theme}".`);
-    process.exit(2);
-  }
+  if (!THEMES.includes(t)) throw new Error(`--theme is ${THEMES.join(" or ")}, not "${flags.theme}".`);
   return t;
 }
 export const emulateTheme = (browser, sessionId, theme = "light") =>

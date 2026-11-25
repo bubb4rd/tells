@@ -24,6 +24,7 @@ import { fileURLToPath } from "node:url";
 import { display, makePaint, parseArgs } from "./check.mjs";
 import { measure, rank, printRanking, ruleCount } from "./pick.mjs";
 import { resolveReferences } from "./references.mjs";
+import { intFlag } from "./cli.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TELLS = path.resolve(HERE, "..");
@@ -175,10 +176,10 @@ export async function run(argv = process.argv.slice(2)) {
     console.error('tells make: give it a brief, e.g. tells make "a booking screen for a bike repair shop"');
     process.exit(2);
   }
-  const n = Math.max(2, Math.min(12, Number(valueOf("variants")) || 4));
+  const n = intFlag("variants", valueOf("variants"), { min: 2, max: 12, fallback: 4 });
   const out = path.resolve(valueOf("out") ?? path.join("tells-make", `${slug(brief)}-${stamp()}`));
   const agent = valueOf("agent");
-  const timeoutMs = (Number(valueOf("timeout")) || (refSpecs.length || kinds.length ? 40 : 20)) * 60_000;
+  const timeoutMs = intFlag("timeout", valueOf("timeout"), { min: 1, max: 600, fallback: refSpecs.length || kinds.length ? 40 : 20 }) * 60_000;
   const paint = makePaint(Boolean(process.stdout.isTTY) && !process.env.NO_COLOR);
   const say = (s) => process.stdout.write(s + "\n");
 
