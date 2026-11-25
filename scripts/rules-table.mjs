@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Rewrites the rule tables in README.md between the <!-- rules:check --> / <!-- rules:render --> markers.
+// Rewrites the rule tables in README.md between the <!-- rules:<command> --> markers, and the rule count in each table's summary.
 import fs from "node:fs";
 import { RULES as CHECK } from "../src/check.mjs";
 import { RULES as RENDER } from "../src/render.mjs";
@@ -20,6 +20,7 @@ for (const [key, rules] of [["check", CHECK], ["render", RENDER], ["same", SAME]
   const re = new RegExp(`(<!-- rules:${key} -->)[\\s\\S]*?(<!-- /rules:${key} -->)`);
   if (!re.test(md)) throw new Error(`README is missing the rules:${key} markers`);
   md = md.replace(re, `$1\n${table(rules, key === "check")}\n$2`);
+  md = md.replace(new RegExp(`(<b><code>tells ${key}</code></b>: )\\d+( rules?)`), `$1${rules.length}$2`);
 }
 if (process.argv.includes("--check")) {
   if (md !== fs.readFileSync(file, "utf8")) {

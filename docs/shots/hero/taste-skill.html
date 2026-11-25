@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en" data-radius="soft" data-type="software">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="page-type" content="software">
+<meta name="site-kind" content="software">
+<title>Repair desk</title>
+<meta name="description" content="The repair queue for bike shop staff: open jobs, parts on order, the job in front of you and what it costs.">
+<meta name="theme-color" content="#e6dbc7">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Palette cobalt-on-sand, type instrument, radius soft (start.mjs deal). */
+:root {
+  --bg: #e6dbc7; --surface: #ddd0b9; --ink: #062b8a; --muted: #3253a4;
+  --line: rgba(6, 43, 138, .16); --fill: #062b8a; --fill-ink: #e6dbc7;
+  --r-lg: 20px; --r-md: 12px; --r-btn: 999px;
+  --font-text: "Instrument Sans", system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, Menlo, Consolas, monospace;
+  --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 400 16px/1.5 var(--font-text);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p { margin: 0; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.skip-link {
+  position: absolute; left: var(--s-4); top: -60px; z-index: 20;
+  background: var(--fill); color: var(--fill-ink); padding: 8px 16px; border-radius: var(--r-btn);
+}
+.skip-link:focus { top: var(--s-2); }
+.mono { font-family: var(--font-mono); font-size: 13px; font-weight: 500; }
+.muted { color: var(--muted); }
+.label { font-size: 13px; font-weight: 500; color: var(--muted); }
+
+/* Shell: header, then three panes: the queue, the job, the parts and the customer. */
+.app { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+.top {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: var(--s-3); font-weight: 500; font-size: 20px; letter-spacing: -.02em; }
+.brand-mark {
+  width: 28px; height: 28px; border-radius: 8px; background: var(--fill); color: var(--fill-ink);
+  display: grid; place-items: center; font-family: var(--font-mono); font-size: 13px; font-weight: 500;
+}
+.top nav { display: flex; gap: var(--s-5); }
+.top nav a {
+  color: var(--ink); text-decoration: none; font-size: 15px; font-weight: 500;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0 1px; background-repeat: no-repeat; background-position: 0 100%;
+  padding-bottom: 2px; transition: background-size .3s ease;
+}
+.top nav a:hover, .top nav a[aria-current="page"] { background-size: 100% 1px; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 var(--s-5); border-radius: var(--r-btn);
+  border: 1px solid var(--ink); background: transparent; color: var(--ink);
+  font-size: 16px; font-weight: 500; text-decoration: none; white-space: nowrap;
+  transition: transform .18s ease, background-color .18s ease;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: scale(.98); }
+.btn--primary { background: var(--fill); color: var(--fill-ink); border-color: var(--fill); }
+.btn--primary:hover { background: #0a3aa8; }
+.btn--small { min-height: 40px; padding: 0 var(--s-4); font-size: 15px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+
+.panes {
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr) minmax(280px, 340px);
+  gap: var(--s-5);
+  padding: var(--s-5);
+  align-items: start;
+}
+.pane {
+  background: var(--surface); border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  padding: var(--s-5); min-width: 0;
+}
+.pane-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); margin-bottom: var(--s-4); }
+.pane-head h1 { font-size: 36px; font-weight: 500; letter-spacing: -.03em; line-height: 1.1; }
+.pane-head h2 { font-size: 20px; font-weight: 500; letter-spacing: -.02em; }
+.step-now { display: none; }
+.section-h { font-size: 18px; font-weight: 500; letter-spacing: -.02em; margin: var(--s-6) 0 var(--s-3); }
+
+/* Queue */
+.filters { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-bottom: var(--s-4); }
+.chip {
+  min-height: 36px; padding: 0 var(--s-4); border-radius: var(--r-btn);
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  font-size: 15px; font-weight: 500; transition: transform .18s ease, border-color .18s ease;
+}
+.chip:hover { transform: translateY(-1px); border-color: var(--ink); }
+.chip:active { transform: scale(.98); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip .mono { margin-left: 6px; }
+.queue { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-3); }
+.row {
+  width: 100%; text-align: left; display: block;
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: var(--s-4);
+  transition: transform .2s ease, border-color .2s ease;
+}
+.row:hover { transform: translateY(-2px); border-color: var(--ink); }
+.row[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 3px 0 0 var(--ink); }
+.row-top { display: flex; justify-content: space-between; gap: var(--s-3); align-items: baseline; }
+.row-bike { font-weight: 500; font-size: 17px; }
+.row-job { margin-top: 4px; font-size: 15px; color: var(--muted); }
+.row-foot { margin-top: var(--s-3); display: flex; justify-content: space-between; gap: var(--s-3); font-size: 14px; }
+.status { font-size: 14px; font-weight: 500; }
+.status--today { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+
+/* Job */
+.job-title { font-size: 28px; font-weight: 500; letter-spacing: -.03em; line-height: 1.1; }
+.job-meta { margin-top: var(--s-2); display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); font-size: 15px; color: var(--muted); }
+.steps {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-2);
+  margin: var(--s-6) 0 0; padding: 0; list-style: none;
+}
+.steps li { position: relative; padding-top: var(--s-5); font-size: 14px; color: var(--muted); }
+.steps li::before { content: ""; position: absolute; top: 6px; left: 0; right: 0; height: 2px; background: var(--line); }
+.steps li::after {
+  content: ""; position: absolute; top: 0; left: 0; width: 14px; height: 14px;
+  border-radius: 50%; border: 2px solid var(--line); background: var(--bg);
+}
+.steps li.done::before { background: var(--ink); }
+.steps li.done::after { background: var(--ink); border-color: var(--ink); }
+.steps li.now { color: var(--ink); font-weight: 500; }
+.steps li.now::after { border-color: var(--ink); }
+.steps li:first-child::before { left: 7px; }
+.steps li:last-child::before { right: 7px; }
+.tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.tasks label {
+  display: flex; align-items: center; gap: var(--s-3); min-height: 44px; padding: 0 var(--s-4);
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md); cursor: pointer;
+  transition: border-color .2s ease;
+}
+.tasks label:hover { border-color: var(--ink); }
+.tasks input { width: 20px; height: 20px; accent-color: var(--ink); margin: 0; }
+.tasks input:checked + span { text-decoration: line-through; color: var(--muted); }
+.notes { background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--s-4); }
+.notes p + p { margin-top: var(--s-3); }
+
+/* Parts and cost */
+.lines { list-style: none; margin: 0; padding: 0; }
+.lines li {
+  display: flex; justify-content: space-between; gap: var(--s-3);
+  padding: var(--s-3) 0; border-bottom: 1px solid var(--line); font-size: 16px;
+}
+.lines li span:last-child { font-family: var(--font-mono); font-size: 14px; white-space: nowrap; }
+.total { display: flex; justify-content: space-between; align-items: baseline; padding: var(--s-4) 0 var(--s-2); font-size: 16px; }
+.total strong { font-size: 26px; font-weight: 500; letter-spacing: -.03em; }
+.order-note { font-size: 15px; color: var(--muted); margin-bottom: var(--s-4); }
+.side-stack { display: grid; gap: var(--s-4); align-content: start; }
+.person { display: grid; gap: 4px; font-size: 16px; }
+
+/* Narrower screens: the queue and the job share a row; the cost pane drops below. */
+@media (max-width: 1180px) {
+  .panes { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); }
+  .side { grid-column: 2; }
+}
+@media (max-width: 820px) {
+  .panes { grid-template-columns: 1fr; padding: var(--s-4); gap: var(--s-4); }
+  .side { grid-column: auto; }
+  .top { padding: var(--s-3) var(--s-4); flex-wrap: wrap; }
+  .top nav { display: none; }
+  .job-title { font-size: 24px; }
+  .steps li { font-size: 13px; line-height: 1.3; }
+}
+@media (max-width: 480px) {
+  .steps li:not(.now) { color: transparent; font-size: 0; }
+  .step-now { display: block; margin-top: var(--s-3); font-size: 15px; font-weight: 500; }
+}
+@media (max-width: 390px) {
+  .top { flex-direction: column; align-items: stretch; }
+  .top .btn { width: 100%; }
+  .btn-row .btn { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <a class="skip-link" href="#queue">Skip to the queue</a>
+    <div class="brand"><span class="brand-mark" aria-hidden="true">RD</span>Repair desk</div>
+    <nav aria-label="Main">
+      <a href="#queue" aria-current="page">Queue</a>
+      <a href="#parts">Parts</a>
+      <a href="#customer">Customers</a>
+      <a href="#today">Today</a>
+    </nav>
+    <div class="btn-row">
+      <button class="btn btn--primary" type="button">New repair</button>
+    </div>
+  </header>
+
+  <main class="panes" id="top">
+    <section class="pane" id="queue" aria-labelledby="queue-h">
+      <div class="pane-head">
+        <h1 id="queue-h">Repair queue</h1>
+        <span class="label" id="open-count">5 open</span>
+      </div>
+      <div class="filters" role="group" aria-label="Filter the queue">
+        <button class="chip" type="button" aria-pressed="true" data-filter="all">All <span class="mono">5</span></button>
+        <button class="chip" type="button" aria-pressed="false" data-filter="today">Due today <span class="mono">2</span></button>
+        <button class="chip" type="button" aria-pressed="false" data-filter="parts">Waiting for parts <span class="mono">1</span></button>
+        <button class="chip" type="button" aria-pressed="false" data-filter="ready">Ready <span class="mono">1</span></button>
+      </div>
+      <ul class="queue" id="rows"></ul>
+    </section>
+
+    <section class="pane" id="job" aria-labelledby="job-h" aria-live="polite">
+      <p class="label" id="job-no"></p>
+      <h2 class="job-title" id="job-h"></h2>
+      <div class="job-meta" id="job-meta"></div>
+
+      <ol class="steps" id="steps" aria-label="Repair progress"></ol>
+      <p class="step-now" id="step-now"></p>
+
+      <h3 class="section-h" id="today">Work to do</h3>
+      <ul class="tasks" id="tasks"></ul>
+
+      <h3 class="section-h">Notes from the customer</h3>
+      <div class="notes" id="notes"></div>
+
+      <div class="btn-row" style="margin-top: var(--s-6)">
+        <button class="btn btn--primary" type="button" id="mark">Mark as ready for pickup</button>
+        <button class="btn" type="button">Print job card</button>
+      </div>
+    </section>
+
+    <section class="side side-stack" aria-label="Parts, cost and customer">
+      <section class="pane" id="parts" aria-labelledby="parts-h">
+        <div class="pane-head"><h2 id="parts-h">Parts and labour</h2></div>
+        <ul class="lines" id="lines"></ul>
+        <div class="total"><span>Total</span><strong id="total"></strong></div>
+        <p class="order-note" id="order-note"></p>
+        <div class="btn-row">
+          <button class="btn btn--small" type="button">Add a part</button>
+          <button class="btn btn--small" type="button">Order a part</button>
+        </div>
+      </section>
+
+      <section class="pane" id="customer" aria-labelledby="cust-h">
+        <div class="pane-head"><h2 id="cust-h">Customer</h2></div>
+        <div class="person" id="person"></div>
+        <div class="btn-row" style="margin-top: var(--s-4)">
+          <button class="btn btn--small" type="button">Message customer</button>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  // Sample jobs for the layout only. Names, bikes and prices are invented.
+  var jobs = [
+    { no: "4821", bike: "Brompton C Line", job: "Front brake rebleed and pad check", due: "Due today, 16:00", stage: 2, cat: ["today"],
+      tasks: ["Strip and clean the front caliper", "Bleed the hydraulic line", "Check pad wear", "Test ride for ten minutes"],
+      notes: ["Brakes feel spongy since the last ride. Please check before the weekend.", "Happy to wait while it is done."],
+      lines: [["Brake fluid DOT 5.1", 6.50], ["Resin brake pads, pair", 14.00], ["Labour, one hour", 35.00]],
+      note: "Parts in stock. Ready by 16:00 if the test ride is clean.",
+      person: ["Priya S.", "Customer since 2023", "Contact details are in the file"] },
+    { no: "4826", bike: "Trek Marlin 5, 2019", job: "Full service and gear indexing", due: "Due today, 17:30", stage: 1, cat: ["today", "parts"],
+      tasks: ["Index the rear gears", "Replace the chain if worn", "Check the rear hanger"],
+      notes: ["Gears skip on the big cog. I think the hanger is bent."],
+      lines: [["Rear derailleur hanger", 18.00], ["Chain, 11 speed", 22.00], ["Full service labour", 60.00]],
+      note: "Hanger ordered 20 November. Expected Thursday.",
+      person: ["Tom O.", "Customer since 2021", "Contact details are in the file"] },
+    { no: "4829", bike: "Specialized Allez, 2016", job: "Wheel true and one spoke replacement", due: "Due Thursday", stage: 2, cat: [],
+      tasks: ["True the rear wheel", "Replace the broken spoke", "Check the rim tape"],
+      notes: ["Rear wheel wobbles. Went over a kerb."],
+      lines: [["Spoke, cut to length", 3.50], ["Wheel true labour", 30.00]],
+      note: "Spoke in stock.",
+      person: ["Maya R.", "New customer this year", "Contact details are in the file"] },
+    { no: "4833", bike: "Cannondale Topstone, 2022", job: "Tubeless conversion, front and rear", due: "Due Friday", stage: 0, cat: [],
+      tasks: ["Fit tubeless rim tape", "Set the tyres and check for leaks", "Fit sealant"],
+      notes: ["Please make the tyres tubeless. I have the sealant already."],
+      lines: [["Tubeless valves, pair", 16.00], ["Labour, one hour", 35.00]],
+      note: "Waiting for the customer to confirm the tyre size.",
+      person: ["Sam K.", "Customer since 2024", "Contact details are in the file"] },
+    { no: "4807", bike: "Raleigh Pioneer, 1974", job: "New chain and brake cables", due: "Ready since Monday", stage: 3, cat: ["ready"],
+      tasks: ["Chain fitted and checked", "Cables adjusted", "Paid by card"],
+      notes: ["Collecting Saturday."],
+      lines: [["Chain, half inch", 12.00], ["Brake cables, pair", 9.00], ["Labour, one hour", 35.00]],
+      note: "Paid. Waiting to be collected.",
+      person: ["Lena H.", "Customer since 2019", "Contact details are in the file"] }
+  ];
+
+  var stages = ["Received", "Diagnosed", "In repair", "Ready", "Collected"];
+  var current = 0;
+  var filter = "all";
+  var $ = function (id) { return document.getElementById(id); };
+
+  function visible(j) {
+    return filter === "all" || j.cat.indexOf(filter) > -1;
+  }
+
+  function stateLabel(j) {
+    if (j.stage === 3) return "Ready for pickup";
+    if (j.stage === 1) return "Waiting for parts";
+    if (j.stage === 0) return "Received";
+    return "In repair";
+  }
+
+  function drawRows() {
+    var rows = $("rows");
+    rows.innerHTML = "";
+    jobs.forEach(function (j, i) {
+      if (!visible(j)) return;
+      var li = document.createElement("li");
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "row";
+      b.setAttribute("aria-pressed", i === current ? "true" : "false");
+
+      var top = document.createElement("div"); top.className = "row-top";
+      var bike = document.createElement("span"); bike.className = "row-bike"; bike.textContent = j.bike;
+      var no = document.createElement("span"); no.className = "mono muted"; no.textContent = "#" + j.no;
+      top.appendChild(bike); top.appendChild(no);
+
+      var job = document.createElement("div"); job.className = "row-job"; job.textContent = j.job;
+
+      var foot = document.createElement("div"); foot.className = "row-foot";
+      var st = document.createElement("span"); st.className = "status"; st.textContent = stateLabel(j);
+      if (j.cat.indexOf("today") > -1) st.classList.add("status--today");
+      var due = document.createElement("span"); due.className = "muted"; due.textContent = j.due;
+      foot.appendChild(st); foot.appendChild(due);
+
+      b.appendChild(top); b.appendChild(job); b.appendChild(foot);
+      b.addEventListener("click", function () { current = i; drawAll(); });
+      li.appendChild(b);
+      rows.appendChild(li);
+    });
+  }
+
+  function drawJob() {
+    var j = jobs[current];
+    $("job-no").textContent = "Job #" + j.no;
+    $("job-h").textContent = j.bike;
+
+    var meta = $("job-meta");
+    meta.innerHTML = "";
+    [j.job, j.due].forEach(function (t) {
+      var s = document.createElement("span"); s.textContent = t; meta.appendChild(s);
+    });
+
+    var steps = $("steps");
+    steps.innerHTML = "";
+    stages.forEach(function (name, k) {
+      var li = document.createElement("li");
+      li.textContent = name;
+      if (k < j.stage) li.className = "done";
+      if (k === j.stage) li.className = "now";
+      steps.appendChild(li);
+    });
+
+    $("step-now").textContent = "Step " + (j.stage + 1) + " of 5: " + stages[j.stage];
+
+    var tasks = $("tasks");
+    tasks.innerHTML = "";
+    j.tasks.forEach(function (t, k) {
+      var li = document.createElement("li");
+      var lab = document.createElement("label");
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.id = "t" + j.no + "-" + k;
+      lab.htmlFor = cb.id;
+      var sp = document.createElement("span"); sp.textContent = t;
+      lab.appendChild(cb); lab.appendChild(sp);
+      li.appendChild(lab);
+      tasks.appendChild(li);
+    });
+
+    var notes = $("notes");
+    notes.innerHTML = "";
+    j.notes.forEach(function (n) {
+      var p = document.createElement("p"); p.textContent = n; notes.appendChild(p);
+    });
+  }
+
+  function money(n) { return "£" + n.toFixed(2); }
+
+  function drawCost() {
+    var j = jobs[current];
+    var lines = $("lines");
+    lines.innerHTML = "";
+    var sum = 0;
+    j.lines.forEach(function (l) {
+      var li = document.createElement("li");
+      var a = document.createElement("span"); a.textContent = l[0];
+      var b = document.createElement("span"); b.textContent = money(l[1]);
+      li.appendChild(a); li.appendChild(b);
+      lines.appendChild(li);
+      sum += l[1];
+    });
+    $("total").textContent = money(sum);
+    $("order-note").textContent = j.note;
+
+    var p = $("person");
+    p.innerHTML = "";
+    var n = document.createElement("span"); n.textContent = j.person[0]; n.style.fontWeight = "500";
+    var since = document.createElement("span"); since.className = "muted"; since.textContent = j.person[1];
+    var how = document.createElement("span"); how.className = "muted"; how.textContent = j.person[2];
+    p.appendChild(n); p.appendChild(since); p.appendChild(how);
+  }
+
+  function drawCounts() {
+    var keys = { all: null, today: "today", parts: "parts", ready: "ready" };
+    var open = jobs.filter(function (j) { return j.stage < 4; }).length;
+    document.querySelectorAll(".chip").forEach(function (c) {
+      var k = c.getAttribute("data-filter");
+      var n = jobs.filter(function (j) { return k === "all" ? j.stage < 4 : j.cat.indexOf(keys[k]) > -1; }).length;
+      c.querySelector(".mono").textContent = String(n);
+    });
+    $("open-count").textContent = open + " open";
+  }
+
+  function drawAll() { drawRows(); drawJob(); drawCost(); drawCounts(); }
+
+  document.querySelectorAll(".chip").forEach(function (c) {
+    c.addEventListener("click", function () {
+      filter = c.getAttribute("data-filter");
+      document.querySelectorAll(".chip").forEach(function (x) {
+        x.setAttribute("aria-pressed", x === c ? "true" : "false");
+      });
+      if (!visible(jobs[current])) {
+        var first = jobs.findIndex(visible);
+        if (first > -1) current = first;
+      }
+      drawAll();
+    });
+  });
+
+  $("mark").addEventListener("click", function () {
+    var j = jobs[current];
+    if (j.stage < 3) { j.stage = 3; j.cat = j.cat.filter(function (c) { return c !== "today" && c !== "parts"; }); j.cat.push("ready"); }
+    drawAll();
+  });
+
+  drawAll();
+})();
+</script>
+</body>
+</html>
