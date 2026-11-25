@@ -51,14 +51,14 @@ It's built for product UI, the dashboards, tools and apps people use every day, 
 
 ## Install
 
-Requires Node 20 or later. `tells render` also needs Chrome or Chromium.
+Requires Node 20 or later. The rendered commands (`render`, `measure`, `consistent`, and `same --rendered`) also need Chrome, Chromium or Edge.
 
 ```sh
 git clone https://github.com/bubb4rd/tells.git
 cd tells && npm link        # puts `tells` on your PATH
 ```
 
-Without `npm link`, call `node path/to/tells/bin/tells.mjs` in place of `tells`. Set `CHROME_PATH` if Chrome isn't in a standard place.
+Without `npm link`, call `node path/to/tells/bin/tells.mjs` in place of `tells`. tells looks for the browser where macOS, Linux and Windows install it, then on your `PATH`; set `CHROME_PATH` to use another binary.
 
 ## Use
 
@@ -72,24 +72,24 @@ tells measure http://localhost:3000                 # lead, density and type ste
 ```
 
 ```
-tells check  [paths...]        Static audit of HTML, CSS, JSX, TSX, MDX and UI scripts
-tells fix    [paths...]        Rewrite the hits that have one right answer, then report the rest
-tells render [files|dirs|urls] Rendered audit in headless Chrome at 1440, 960 and 390px
-tells same   [designs|urls...] Catch a design that lands on a cliché cluster, your house style or a sibling
-tells pick   <variants...>     Choose between variants with checks: errors, exceptions, sameness, warnings
-tells make   "<brief>"         Build variants in parallel with an agent, fix them, pick one, write a report
-tells measure [files|urls...]  Profile a rendered screen: lead, density, type steps, alignment
-tells consistent [screens...]  Check that a product's screens read as one system
-tells click  [files|dirs...]   Press every control from a fresh start: errors, dead controls, broken links
-tells refs   [add|remove]      Your library of reference screens for make --reference
-tells rules  [check|render|same|consistent|click] List every rule with its severity and fix
+tells check      [paths...]         Static audit of HTML, CSS, JSX, TSX, MDX and UI scripts
+tells fix        <paths...>         Rewrite the hits that have one right answer, then report the rest
+tells render     [files|dirs|urls]  Rendered audit in headless Chrome at 1440, 960 and 390px
+tells same       [designs|urls...]  Catch a design that lands on a cliché cluster, your house style or a sibling
+tells pick       <variants...>      Choose between variants with checks: errors, exceptions, sameness, warnings
+tells make       "<brief>"          Build variants in parallel with an agent, fix them, pick one, write a report
+tells measure    [files|urls...]    Profile a rendered screen: lead, density, type steps, alignment
+tells consistent [screens...]       Check that a product's screens read as one system
+tells click      [files|dirs...]    Press every control from a fresh start: errors, dead controls, broken links
+tells refs       [list|add|remove]  Your library of reference screens for make --reference
+tells rules      [set]              List every rule with its fix; sets: check, render, same, consistent, click
 
 --json          Machine-readable output
---strict        Fail on warnings as well as errors
---rule <id>     Run one rule
+--strict        check, fix, render, consistent, click: fail on warnings as well as errors
+--rule <id>     check, fix, render: run one rule
 --dry-run       fix: show what would change, write nothing
 --radius <css>  fix: radius that replaces pills (default 6px)
---house <path>  same, pick, make: compare with this design instead of the majority
+--house <p>     same, pick, make: compare with this design instead of the majority
 --against <p>   same, pick, make: past designs to compare with (repeatable)
 --rendered      same: fingerprint rendered styles, colour role and layout in headless Chrome
 --reference <r> make: study this screen (library name, URL, HTML or image; repeatable)
@@ -98,21 +98,31 @@ tells rules  [check|render|same|consistent|click] List every rule with its sever
 --assets <dir>  make: real logos, photos and art for the agents to use
 --current <png> make: a screenshot of the page being redesigned
 --style         make: take the look from the reference too, not only its finish
---variants <n>  make: how many to build (default 4)
+--variants <n>  make: how many to build (default 4, or 2 with --product)
+--out <dir>     make: where the run goes (default tells-make/<brief>-<time>)
 --product       make: several screens on one system; stops for you to approve the system (with --screens)
 --screens <s>   make --product: "<id>: <job>; <id>: <job>; …", the first two are the lead screens
 --resume <out>  make: continue a --product run; --approve <v> picks its system
---concurrency n make --product: screen agents at a time (default 3)
---shots <dir>   measure: save a 1440×900 screenshot of each page
---full          measure, refs add: screenshot the whole page, up to 4,000px
+--approve <v>   make --resume: the system variant to build the screens on
+--revise <v>    make --resume: send a system variant back with --notes before approving
+--concurrency n make --product: screen agents at a time, default 3
 --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
+--model <m>     make: model for the default agent
+--timeout <min> make: minutes each agent gets (default 20, 40 with references)
+--shots <dir>   measure: save a 1440×900 screenshot of each page
+--width <px>    measure: viewport width (default 1440)
+--full          measure, refs add: screenshot the whole page, up to 4,000px
 --no-render     same, pick, make: skip the headless Chrome checks
 --lead <file>   consistent: the approved screens that define the system (repeatable)
---theme <t>     render, same, measure, consistent: light (default) or dark, whatever the machine is set to
---widths a,b,c  Viewport widths for render
+--theme <t>     render, same, measure, consistent, click: light (default) or dark, whatever the machine is set to
+--widths a,b,c  render: viewport widths in px (default 1440,960,390)
 ```
 
-Every command exits 1 when errors are left, so they work in CI as they are. Files with `mobile` in their path render at 390px only, unless you pass `--widths`.
+`tells <command> --help` says what a command reads and gives an example.
+
+`check`, `fix`, `render`, `same`, `pick`, `consistent` and `click` exit 1 when errors are left (or warnings, with `--strict`), so they work in CI as they are. Every command exits 2 when it can't run: an unknown flag, a path that doesn't exist, a folder with nothing to check, a page that won't load or answers 4xx or 5xx. A typo in CI fails the build instead of passing on nothing. Files with `mobile` in their path render at 390px only, unless you pass `--widths`.
+
+tells checks code and rendered pages, not screenshots. To audit what a screenshot shows, point `render` at the page or its URL. A screenshot is a reference: `make --reference shot.png` studies it, `make --current shot.png` redesigns the page it shows, and `refs add shot.png` keeps it in your library.
 
 A `.js`, `.mjs` or `.ts` file is checked when it builds UI: JSX, or at least five lines of HTML in string or template literals (`'<h1>' + title + '</h1>'`). Tests, minified files and plain scripts are skipped.
 

@@ -17,7 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { display, makePaint } from "./check.mjs";
-import { CdpBrowser, emulateTheme, findChrome, startServer, serveRootFor, fileToUrl, themeOf } from "./cdp.mjs";
+import { CdpBrowser, emulateTheme, findChrome, navigate, startServer, serveRootFor, fileToUrl, themeOf } from "./cdp.mjs";
 import { configFor } from "./config.mjs";
 
 export const RULES = [
@@ -75,7 +75,6 @@ const LINKS = `[...document.querySelectorAll('a[href]')].map((a) => ({ href: a.g
 /** Press every control on each page. Returns [{target, file, controls, hits: [{rule, detail, ok?}]}]. */
 export async function clickPages(files, { theme = "light" } = {}) {
   const chrome = findChrome();
-  if (!chrome) throw new Error("Chrome not found (set CHROME_PATH)");
   const root = serveRootFor(files);
   const { server, baseUrl } = await startServer(root);
   const b = new CdpBrowser(chrome);
@@ -94,10 +93,9 @@ export async function clickPages(files, { theme = "light" } = {}) {
     b.listeners.set(`${s}:Runtime.exceptionThrown`, new Set([onThrow]));
     const ev = async (expression) => (await b.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, s)).result.value;
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    // A page that won't load, or answers 4xx/5xx, stops the run: its error page isn't the page.
     const load = async (url) => {
-      const loaded = b.onceEvent("Page.loadEventFired", s, 20000).catch(() => {});
-      await b.send("Page.navigate", { url }, s);
-      await loaded;
+      await navigate(b, s, url, { timeout: 20000 });
       await wait(250);
     };
     const fresh = async (url) => {

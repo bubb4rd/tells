@@ -1,123 +1,53 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
+import { COMMANDS, UsageError, checkInputs, commandHelp, help, parseCommandLine, suggestCommand } from "../src/cli.mjs";
 
-const HELP = `tells: find the marks of default, AI-generated UI
-
-Usage
-  tells check  [paths...]        Static audit of HTML, CSS, JSX, TSX, MDX and UI scripts
-  tells fix    [paths...]        Rewrite the hits that have one right answer, then report the rest
-  tells render [files|dirs|urls] Rendered audit in headless Chrome at 1440, 960 and 390px
-  tells same   [designs|urls...] Catch a design that lands on a cliché cluster, your house style or a sibling
-  tells pick   <variants...>     Choose between variants with checks: errors, exceptions, sameness, warnings
-  tells make   "<brief>"         Build variants in parallel with an agent, fix them, pick one, write a report
-  tells measure [files|urls...]  Profile a rendered screen: lead, density, type steps, alignment
-  tells consistent [screens...]  Check that a product's screens read as one system
-  tells click  [files|dirs...]   Press every control from a fresh start: errors, dead controls, broken links
-  tells refs   [add|remove]      Your library of reference screens for make --reference
-  tells rules  [check|render|same|consistent|click] List every rule with its severity and fix
-
-Flags
-  --json          Machine-readable output
-  --strict        Fail on warnings as well as errors
-  --rule <id>     Run one rule
-  --dry-run       fix: show what would change, write nothing
-  --radius <css>  fix: radius that replaces pills (default 6px)
-  --against <p>   same, pick, make: past designs to compare with (repeatable)
-  --house <p>     same, pick, make: compare with this design instead of the majority
-  --rendered      same: fingerprint rendered styles, colour role and layout in headless Chrome
-  --reference <r> make: study this screen (library name, URL, HTML or image; repeatable)
-  --kind <k>      make: study every library reference of this kind
-  --page <p>      make: landing or product (default: guessed from the brief)
-  --assets <dir>  make: real logos, photos and art for the agents to use
-  --current <png> make: a screenshot of the page being redesigned
-  --style         make: take the look from the reference too, not only its finish
-  --variants <n>  make: how many to build (default 4)
-  --product       make: several screens on one system; stops for you to approve the system (with --screens)
-  --screens <s>   make --product: "<id>: <job>; <id>: <job>; …", the first two are the lead screens
-  --resume <out>  make: continue a --product run; --approve <v> picks its system
-  --concurrency n make --product: screen agents at a time (default 3)
-  --shots <dir>   measure: save a 1440×900 screenshot of each page
-  --full          measure, refs add: screenshot the whole page, up to 4,000px
-  --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
-  --no-render     same, pick, make: skip the headless Chrome checks
-  --lead <file>   consistent: the approved screens that define the system (repeatable)
-  --theme <t>     render, same, measure, consistent, click: light (default) or dark, whatever the machine is set to
-  --widths a,b,c  Viewport widths for render
-
-Exit code is 1 when errors are found (or warnings, with --strict).
-Allow one hit with a written reason:  <!-- tells-ok: <rule-id> <reason> -->
-Project facts (real shortcuts, project-wide exceptions) go in .tellsrc; see the README.
-`;
+const MODULES = { refs: "references" };
+const RULE_SETS = ["check", "render", "same", "consistent", "click"];
 
 const [cmd, ...rest] = process.argv.slice(2);
 
-if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") {
-  process.stdout.write(HELP);
+// Every failure to run (a usage mistake, a missing path, a page that won't load, Chrome not found) exits 2,
+// as `tells <command>: <what went wrong>`. TELLS_DEBUG=1 adds the stack for anything unexpected.
+function fail(where, err) {
+  process.stderr.write(`${where}: ${err.message}\n`);
+  if (process.env.TELLS_DEBUG && !(err instanceof UsageError)) process.stderr.write(`${err.stack}\n`);
+  process.exit(2);
+}
+
+async function rules(which) {
+  if (which && !RULE_SETS.includes(which)) throw new UsageError(`no rule set "${which}". Choose ${RULE_SETS.join(", ")}.`);
+  for (const set of RULE_SETS) {
+    if (which && which !== set) continue;
+    if (!which) console.log(set === RULE_SETS[0] ? set : `\n${set}`);
+    await (await import(`../src/${set}.mjs`)).run(["--rules"]);
+  }
+}
+
+if (!cmd || cmd === "-h" || cmd === "--help") {
+  process.stdout.write(help());
 } else if (cmd === "-v" || cmd === "--version") {
   const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   console.log(pkg.version);
-} else if (cmd === "check") {
-  (await import("../src/check.mjs")).run(rest);
-} else if (cmd === "make") {
-  await (await import("../src/make.mjs")).run(rest);
-} else if (cmd === "pick") {
-  (await import("../src/pick.mjs")).run(rest);
-} else if (cmd === "same") {
-  await (await import("../src/same.mjs")).run(rest).catch((err) => {
-    console.error(`tells same: ${err.message}`);
-    process.exit(2);
-  });
-} else if (cmd === "fix") {
-  (await import("../src/fix.mjs")).run(rest);
-} else if (cmd === "render") {
-  await (await import("../src/render.mjs")).run(rest).catch((err) => {
-    console.error(`tells render: ${err.message}`);
-    process.exit(2);
-  });
-} else if (cmd === "measure") {
-  await (await import("../src/measure.mjs")).run(rest).catch((err) => {
-    console.error(`tells measure: ${err.message}`);
-    process.exit(2);
-  });
-} else if (cmd === "consistent") {
-  await (await import("../src/consistent.mjs")).run(rest).catch((err) => {
-    console.error(`tells consistent: ${err.message}`);
-    process.exit(2);
-  });
-} else if (cmd === "click") {
-  await (await import("../src/click.mjs")).run(rest).catch((err) => {
-    console.error(`tells click: ${err.message}`);
-    process.exit(2);
-  });
-} else if (cmd === "refs") {
-  await (await import("../src/references.mjs")).run(rest).catch((err) => {
-    console.error(`tells refs: ${err.message}`);
-    process.exit(2);
-  });
-} else if (cmd === "rules") {
-  const which = rest[0];
-  if (!which || which === "check") {
-    if (!which) console.log("check");
-    (await import("../src/check.mjs")).run(["--rules"]);
-  }
-  if (!which || which === "render") {
-    if (!which) console.log("\nrender");
-    await (await import("../src/render.mjs")).run(["--rules"]);
-  }
-  if (!which || which === "same") {
-    if (!which) console.log("\nsame");
-    (await import("../src/same.mjs")).run(["--rules"]);
-  }
-  if (!which || which === "consistent") {
-    if (!which) console.log("\nconsistent");
-    await (await import("../src/consistent.mjs")).run(["--rules"]);
-  }
-  if (!which || which === "click") {
-    if (!which) console.log("\nclick");
-    await (await import("../src/click.mjs")).run(["--rules"]);
-  }
+} else if (cmd === "help") {
+  if (!rest[0]) process.stdout.write(help());
+  else if (COMMANDS[rest[0]]) process.stdout.write(commandHelp(rest[0]));
+  else fail("tells help", new UsageError(`no command "${rest[0]}". Run tells --help for the list.`));
+} else if (!COMMANDS[cmd]) {
+  const near = suggestCommand(cmd);
+  fail("tells", new UsageError(`unknown command "${cmd}".${near ? ` Did you mean tells ${near}?` : ""} Run tells --help for the list.`));
+} else if (rest.includes("--help") || rest.includes("-h")) {
+  process.stdout.write(commandHelp(cmd));
 } else {
-  console.error(`tells: unknown command "${cmd}"\n`);
-  process.stderr.write(HELP);
-  process.exit(2);
+  try {
+    const { positional, values } = parseCommandLine(cmd, rest);
+    checkInputs(cmd, positional, values);
+    if (cmd === "fix" && !positional.length) {
+      throw new UsageError("name what to rewrite: tells fix ./src, or tells fix . for this whole folder. Add --dry-run to see the changes first.");
+    }
+    if (cmd === "rules") await rules(positional[0]);
+    else await (await import(`../src/${MODULES[cmd] ?? cmd}.mjs`)).run(rest);
+  } catch (err) {
+    fail(`tells ${cmd}`, err);
+  }
 }
