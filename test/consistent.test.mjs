@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { compare } from "../src/consistent.mjs";
-import { parseScreens, owned, systemPrompts, screenPrompt } from "../src/product.mjs";
+import { parseScreens, owned, systemPrompts, screenPrompt, polishPrompt } from "../src/product.mjs";
 
 const base = { families: ["apfel"], h1: 30, h2: 16, page: [231, 229, 223], panel: { radius: 4, bg: "#f3f2ee", border: "#d2cfc6" }, marks: ["dots"], layout: "sidebar-main", accents: [5] };
 const screen = (label, over = {}) => ({ label, traits: { ...base, ...over } });
@@ -69,4 +69,15 @@ test("an agent's .tellsrc keeps its shortcuts; its allow is set aside for the pe
   assert.deepEqual(JSON.parse(readFileSync(path.join(dir, ".tellsrc"), "utf8")), { shortcuts: ["⌘K"] });
   assert.ok(existsSync(path.join(dir, ".tellsrc.proposed")));
   assert.equal(quarantineAllow(dir), null);
+});
+
+test("the polish prompt quotes the notes, names the leads and its round, and leaves no placeholder", () => {
+  const state = { brief: "a roaster's back office", screens: parseScreens("today: t; orders: o; stock: s") };
+  const p = polishPrompt(state, "the tabs sit too high\nkeep the timeline", 2);
+  assert.match(p, /^> the tabs sit too high$/m);
+  assert.match(p, /^> keep the timeline$/m);
+  assert.match(p, /--lead screens\/today\.html --lead screens\/orders\.html/);
+  assert.match(p, /## Round 2/);
+  assert.match(p, /click screens --strict/);
+  assert.doesNotMatch(p, /\{\{\w+\}\}/);
 });

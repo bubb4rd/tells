@@ -104,7 +104,7 @@ tells rules      [set]              List every rule with its fix; sets: check, r
 --screens <s>   make --product: "<id>: <job>; <id>: <job>; …", the first two are the lead screens
 --resume <out>  make: continue a --product run; --approve <v> picks its system
 --approve <v>   make --resume: the system variant to build the screens on
---revise <v>    make --resume: send a system variant back with --notes before approving
+--revise <v>    make --resume: send a system variant back with --notes before approving, or `product` once it's built
 --concurrency n make --product: screen agents at a time, default 3
 --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
 --model <m>     make: model for the default agent
@@ -241,6 +241,8 @@ tells make --resume tells-make/<run> --approve v1
 2. **You approve one.** `--resume <run> --approve <v>`.
 3. **Screens.** One agent per remaining screen, `--concurrency` at a time, each in its own copy of the approved product. Only the files it owns come back; parts it had to build outside the system are written down for the review.
 4. **Review.** `tells consistent`, `check`, `render` and `click` across the screens, then one agent folds the needs into the system, fixes drift and walks the contracts. `REPORT.md` has the before and after.
+
+5. **Your notes.** Once it's built, use it, then send it back: `--resume <run> --revise product --notes "<what to change>"` (or a notes file). One agent takes each note to its cause, usually a part of the system, so every screen gets the fix, looks for more of the same kind, and writes it into `SYSTEM.md`. Every check runs again, and `REPORT.md` and `product/POLISH.md` gain a round. Repeat as often as you like.
 
 A run stopped by a limit resumes with `--resume <run>`: finished screens are kept and failed ones run again.
 

@@ -106,7 +106,7 @@ export const FLAGS = [
   { name: "screens", arg: "<s>", text: '"<id>: <job>; <id>: <job>; …", the first two are the lead screens', cmds: ["make"], scope: "make --product" },
   { name: "resume", arg: "<out>", text: "continue a --product run; --approve <v> picks its system", cmds: ["make"] },
   { name: "approve", arg: "<v>", text: "the system variant to build the screens on", cmds: ["make"], scope: "make --resume" },
-  { name: "revise", arg: "<v>", text: "send a system variant back with --notes before approving", cmds: ["make"], scope: "make --resume" },
+  { name: "revise", arg: "<v>", text: "send a system variant back with --notes before approving, or `product` once it's built", cmds: ["make"], scope: "make --resume" },
   { name: "notes", arg: "<text>", text: "what to change in the variant named by --revise", cmds: ["make"], scope: "make --resume", global: false },
   { name: "concurrency", arg: "n", text: "screen agents at a time, default 3", cmds: ["make"], scope: "make --product" },
   { name: "agent", arg: "<cmd>", text: "agent command that reads the prompt on stdin (default claude -p)", cmds: ["make"] },

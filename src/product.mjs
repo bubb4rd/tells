@@ -7,14 +7,17 @@
  *              [--out <dir>] [--agent "<cmd>"] [--model <id>] [--timeout <minutes>] [--dry-run]
  *   tells make --resume <out> --approve v1      continue from the system you chose
  *   tells make --resume <out>                   pick up a stopped run (failed screens run again)
+ *   tells make --resume <out> --revise product --notes "…"   send the built product back with your notes
  *
  * 1. System: each variant designs the whole product's system (tokens, parts, shell, store, one chart language),
  *    one world of sample facts, the shared-state contracts, and the first two screens. Then it stops: a person
  *    looks at the lead screens and approves one system. Taste is decided once, where it matters.
  * 2. Screens: one agent per remaining screen, in parallel, each in its own copy of the approved product. Only
  *    the files it owns come back (screens/<id>.*, data/<id>.js); what it needed from the system it writes down.
- * 3. Review: `tells consistent` across the screens, check and render, then one agent folds the needs into the
- *    system, fixes the drift, walks the contracts, and re-runs every check.
+ * 3. Review: `tells consistent` across the screens, check, render and click, then one agent folds the needs into
+ *    the system, fixes the drift, walks the contracts, and re-runs every check.
+ * 4. Your notes, as many rounds as you like: `--revise product --notes "…"` sends the built product back to one
+ *    agent, who fixes each note at its cause (usually the system, so every screen gets it), then every check runs again.
  *
  * State lives in <out>/product.json, so a run stopped by a limit picks up where it stopped.
  */
@@ -188,6 +191,60 @@ export function revisePrompt(state, notes) {
     lead2: state.screens[1].id,
     tells: TELLS,
   });
+}
+
+/** The built product sent back with a person's notes: one agent, every screen, causes fixed in the system. */
+export function polishPrompt(state, notes, round = 1) {
+  return fill(read("make.polish.md"), {
+    round: String(round),
+    brief: state.brief,
+    screens: screenList(state.screens),
+    notes: notes.trim().split("\n").map((l) => `> ${l}`).join("\n"),
+    lead1: state.screens[0].id,
+    lead2: state.screens[1].id,
+    tells: TELLS,
+  });
+}
+
+/** Agents run only node, so deletions they want come as DELETE.txt; only files inside the product go. */
+function applyDeletions(product) {
+  const list = path.join(product, "DELETE.txt");
+  if (!fs.existsSync(list)) return [];
+  const removed = [];
+  for (const rel of fs.readFileSync(list, "utf8").split("\n").map((l) => l.trim()).filter(Boolean)) {
+    const abs = path.resolve(product, rel);
+    if (abs.startsWith(product + path.sep) && fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+      fs.rmSync(abs);
+      removed.push(rel);
+    }
+  }
+  fs.rmSync(list);
+  return removed;
+}
+
+function writeReport(out, state) {
+  const rounds = state.polishes ?? [];
+  fs.writeFileSync(
+    path.join(out, "REPORT.md"),
+    [
+      `# ${state.brief}`,
+      "",
+      `Built on ${state.approved}'s system: [product/screens](product/screens). Start at [${state.screens[0].id}](product/screens/${state.screens[0].id}.html).`,
+      "",
+      `- Before review: ${state.result.before}`,
+      `- After review: ${state.result.after}`,
+      ...rounds.map((r, i) => `- After your notes, round ${i + 1}: ${r.after}${r.run.ok ? "" : ` (agent stopped: ${r.run.error})`}`),
+      "",
+      "| Screen | Job | Screenshot |",
+      "|---|---|---|",
+      ...state.screens.map((s) => `| [${s.id}](product/screens/${s.id}.html) | ${s.job} | ![${s.id}](product/shots/screens_${s.id}.html.png) |`),
+      "",
+      `What the review changed: [REVIEW.md](product/REVIEW.md).${rounds.length ? " What your notes changed: [POLISH.md](product/POLISH.md)." : ""} The system: [SYSTEM.md](product/SYSTEM.md), [CONTRACTS.md](product/CONTRACTS.md).`,
+      "",
+      `Send it back with notes: \`tells make --resume ${display(out)} --revise product --notes "<what to change>"\``,
+      "",
+    ].join("\n"),
+  );
 }
 
 const line = (a) => `consistent ${a.consistent.errors}E/${a.consistent.warnings}W · check ${a.check.errors}E/${a.check.warnings}W · render ${a.render.errors}E/${a.render.warnings}W${a.click ? ` · click ${a.click.errors}E/${a.click.warnings}W` : ""}`;
@@ -480,20 +537,8 @@ export async function run(argv) {
         return;
       }
     }
-    // Agents run only node, so deletions they want come as a list; only files inside the product go.
-    const delList = path.join(product, "DELETE.txt");
-    if (fs.existsSync(delList)) {
-      const removed = [];
-      for (const rel of fs.readFileSync(delList, "utf8").split("\n").map((l) => l.trim()).filter(Boolean)) {
-        const abs = path.resolve(product, rel);
-        if (abs.startsWith(product + path.sep) && fs.existsSync(abs) && fs.statSync(abs).isFile()) {
-          fs.rmSync(abs);
-          removed.push(rel);
-        }
-      }
-      fs.rmSync(delList);
-      state.deleted = removed;
-    }
+    const removed = applyDeletions(product);
+    if (removed.length) state.deleted = removed;
     const setAside = quarantineAllow(product);
     if (setAside) state.proposed = { ...(state.proposed ?? {}), review: setAside };
     tells(["measure", "screens", "--shots", "shots", "--json"], product);
@@ -502,24 +547,7 @@ export async function run(argv) {
     state.finished = new Date().toISOString();
     state.result = { before: line(before), after: line(after) };
     save(out, state);
-    fs.writeFileSync(
-      path.join(out, "REPORT.md"),
-      [
-        `# ${state.brief}`,
-        "",
-        `Built on ${state.approved}'s system: [product/screens](product/screens). Start at [${state.screens[0].id}](product/screens/${state.screens[0].id}.html).`,
-        "",
-        `- Before review: ${line(before)}`,
-        `- After review: ${line(after)}`,
-        "",
-        "| Screen | Job | Screenshot |",
-        "|---|---|---|",
-        ...state.screens.map((s) => `| [${s.id}](product/screens/${s.id}.html) | ${s.job} | ![${s.id}](product/shots/screens_${s.id}.html.png) |`),
-        "",
-        "What the review changed: [REVIEW.md](product/REVIEW.md). The system: [SYSTEM.md](product/SYSTEM.md), [CONTRACTS.md](product/CONTRACTS.md).",
-        "",
-      ].join("\n"),
-    );
+    writeReport(out, state);
     say(`${paint.bold("Done")}  ${paint.dim(line(after))}`);
     say(`Start at ${display(path.join(product, "screens", `${state.screens[0].id}.html`))}`);
     say(paint.dim(`Report: ${display(path.join(out, "REPORT.md"))}`));
@@ -527,5 +555,35 @@ export async function run(argv) {
     return;
   }
 
-  if (state.stage === "done") say(`Already done. Report: ${display(path.join(out, "REPORT.md"))}`);
+  // ---- 4. Your notes on the built product: one agent, every screen, then every check again ----------------
+  if (state.stage === "done" && valueOf("revise")) {
+    const notesArg = valueOf("notes");
+    const notes = notesArg && fs.existsSync(notesArg) ? fs.readFileSync(notesArg, "utf8") : notesArg;
+    if (valueOf("revise") !== "product" || !notes) {
+      console.error('tells make: the product is built. Send it back with --revise product --notes "<what to change>" (or a notes file).');
+      process.exit(2);
+    }
+    const n = (state.polishes ?? []).length + 1;
+    const prompt = polishPrompt(state, notes, n);
+    fs.writeFileSync(path.join(out, `POLISH-PROMPT-${n}.md`), prompt);
+    say(`${paint.bold("Polishing")} the product with your notes, round ${n}`);
+    const r = await runAgent({ dir: product, prompt, agent, model, timeoutMs: timeoutFor("review") });
+    say(`  ${r.ok ? paint.green("polished") : paint.yellow(r.error)}  ${r.seconds}s`);
+    const removed = applyDeletions(product);
+    const setAside = quarantineAllow(product);
+    if (setAside) state.proposed = { ...(state.proposed ?? {}), [`polish-${n}`]: setAside };
+    tells(["measure", "screens", "--shots", "shots", "--json"], product);
+    const after = audit(product, state);
+    state.polishes = [...(state.polishes ?? []), { notes, run: r, deleted: removed, after: line(after), at: new Date().toISOString() }];
+    save(out, state);
+    writeReport(out, state);
+    say(`${paint.bold("Done")}  ${paint.dim(line(after))}`);
+    for (const s of state.screens) say(`  ${display(path.join(product, "shots", `screens_${s.id}.html.png`))}`);
+    if (setAside) say(paint.yellow(`  set aside: allow ${Object.keys(setAside).join(", ")} (product/.tellsrc.proposed)`));
+    say(paint.dim(`What changed: ${display(path.join(product, "POLISH.md"))}. Again: tells make --resume ${display(out)} --revise product --notes "<what to change>"`));
+    if (!r.ok || after.consistent.errors || after.check.errors || after.render.errors || after.click?.errors) process.exitCode = 1;
+    return;
+  }
+
+  if (state.stage === "done") say(`Already done. Report: ${display(path.join(out, "REPORT.md"))}. Send it back with notes: tells make --resume ${display(out)} --revise product --notes "<what to change>"`);
 }
