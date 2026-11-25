@@ -125,3 +125,12 @@ test("--no-render skips browser fingerprinting on tokenless HTML", () => {
   const { designs } = same(path.join(rdir, "glow-void.html"), "--no-siblings", "--no-render");
   assert.ok(designs[0].error);
 });
+
+test("tokens are read for one theme: a light-first product isn't judged by its dark block", () => {
+  const club = path.join(here, "fixtures", "same-themes", "club");
+  const light = same(club, "--no-siblings", "--no-render").designs[0];
+  assert.ok(!light.hits.some((h) => h.rule === "cluster-acid-dark"), light.hits.map((h) => h.rule).join(", "));
+  assert.match(light.axes.page, /^light/);
+  const dark = same(club, "--no-siblings", "--no-render", "--theme", "dark").designs[0];
+  assert.ok(dark.hits.some((h) => h.rule === "cluster-acid-dark"), dark.hits.map((h) => h.rule).join(", ") || "nothing");
+});

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const HELP = `tells: find the marks of default, AI-generated UI
 
 Usage
-  tells check  [paths...]        Static audit of HTML, CSS, JSX, TSX and MDX source
+  tells check  [paths...]        Static audit of HTML, CSS, JSX, TSX, MDX and UI scripts
   tells fix    [paths...]        Rewrite the hits that have one right answer, then report the rest
   tells render [files|dirs|urls] Rendered audit in headless Chrome at 1440, 960 and 390px
   tells same   [designs|urls...] Catch a design that lands on a cliché cluster, your house style or a sibling
@@ -34,10 +34,12 @@ Flags
   --full          measure, refs add: screenshot the whole page, up to 4,000px
   --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
   --no-render     same, pick, make: skip the headless Chrome checks
+  --theme <t>     render, same, measure: light (default) or dark, whatever the machine is set to
   --widths a,b,c  Viewport widths for render
 
 Exit code is 1 when errors are found (or warnings, with --strict).
 Allow one hit with a written reason:  <!-- tells-ok: <rule-id> <reason> -->
+Project facts (real shortcuts, project-wide exceptions) go in .tellsrc; see the README.
 `;
 
 const [cmd, ...rest] = process.argv.slice(2);

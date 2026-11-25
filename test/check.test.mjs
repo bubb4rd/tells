@@ -75,3 +75,51 @@ test("an eyebrow class and a fake countdown are caught however they're styled", 
   assert.deepEqual(lines("eyebrow-copy"), [1, 4]);
   assert.deepEqual(lines("status-theatre"), [3]);
 });
+
+test("HTML built in script strings is linted; plain scripts are skipped", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "tells-check-js-"));
+  const screen = path.join(dir, "screen.js");
+  writeFileSync(screen, [
+    "window.Screens.home = function (v) {",
+    "  v.innerHTML =",
+    "    '<div class=\"head\">' +",
+    "      '<h1>Releases</h1>' +",
+    "      '<p class=\"sub\">' + esc(sub) + '</p>' +",
+    "      '<button class=\"btn\" type=\"button\">Get started</button>' +",
+    "    '</div>' +",
+    "    `<ul>${rows.map((r) => `<li>${r.name}</li>`).join(\"\")}</ul>`;",
+    "};",
+  ].join("\n"));
+  writeFileSync(path.join(dir, "server.js"), "const help = 'Use <kbd>⌘K</kbd>';\nexport const x = 1;\n");
+  writeFileSync(path.join(dir, "screen.test.js"), Array(6).fill("const a = '<button>Get started</button>';").join("\n"));
+  const { out } = check(dir);
+  assert.deepEqual(out.files.map((f) => path.basename(f)), ["screen.js"]);
+  assert.deepEqual(out.hits.map((h) => `${h.rule}:${h.line}`), ["generic-cta:6"]);
+});
+
+test(".tellsrc declares real shortcuts; any other is still flagged", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "tells-check-rc-"));
+  writeFileSync(path.join(dir, ".tellsrc"), JSON.stringify({ shortcuts: ["⌘K", "Cmd+Shift+3"] }));
+  const file = path.join(dir, "nav.html");
+  writeFileSync(file, [
+    "<a href=\"#\">Search <kbd>⌘K</kbd></a>",
+    "<a href=\"#\">Reel Intel <kbd>⇧⌘3</kbd></a>",
+    "<a href=\"#\">Instagram <kbd>⌘3</kbd></a>",
+  ].join("\n"));
+  const { out } = check(file);
+  assert.deepEqual(out.hits.map((h) => `${h.rule}:${h.line}`), ["fake-shortcut:3"]);
+  assert.deepEqual(out.allowed.map((h) => `${h.rule}:${h.line}`), ["fake-shortcut:1", "fake-shortcut:2"]);
+});
+
+test(".tellsrc allow needs a known rule and a reason, and stays listed as allowed", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "tells-check-rc-"));
+  writeFileSync(path.join(dir, ".tellsrc"), JSON.stringify({ allow: { "default-font": "Inter is the licensed brand face", "made-up": "x", "em-dash": "" } }));
+  const file = path.join(dir, "page.html");
+  writeFileSync(file, "<style>body { font-family: Inter, sans-serif; }</style>\n<p>One — two — three</p>\n");
+  const { out } = check(file);
+  assert.ok(out.allowed.some((h) => h.rule === "default-font" && /licensed brand face/.test(h.reason)));
+  assert.ok(!out.hits.some((h) => h.rule === "default-font"));
+  assert.ok(out.hits.some((h) => h.rule === "ok-unknown" && /made-up/.test(h.snippet)));
+  assert.ok(out.hits.some((h) => h.rule === "ok-reason" && /em-dash/.test(h.snippet)));
+  assert.ok(out.hits.some((h) => h.rule === "em-dash"), "an allow with no reason doesn't allow");
+});

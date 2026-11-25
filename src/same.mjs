@@ -26,6 +26,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { display, makePaint, parseArgs } from "./check.mjs";
 import { fingerprintPages } from "./render.mjs";
+import { themeOf } from "./cdp.mjs";
 
 const ROOT = process.cwd();
 const COPY_LIMIT = 6;
@@ -142,14 +143,58 @@ function familyOf(decl) {
 // Reading a design
 
 /** Custom properties: :root blocks first, then the first theme scope that sets each one. */
-function rootProps(text) {
-  const props = {};
+/** Innermost CSS blocks with the at-rule preludes that enclose them. */
+function cssBlocks(text) {
   const clean = text.replace(/\/\*[\s\S]*?\*\//g, "");
-  const blocks = [...clean.matchAll(/([^{}]*)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].trim(), body: m[2] }));
-  const ordered = [...blocks.filter((b) => /:root\s*$/.test(b.sel)), ...blocks.filter((b) => !/:root\s*$/.test(b.sel))];
+  const out = [];
+  const stack = [];
+  let start = 0;
+  for (let i = 0; i < clean.length; i++) {
+    const c = clean[i];
+    if (c === "{") {
+      stack.push({ sel: clean.slice(start, i).trim(), open: i + 1, inner: false });
+      if (stack.length > 1) stack[stack.length - 2].inner = true;
+      start = i + 1;
+    } else if (c === "}") {
+      const b = stack.pop();
+      if (b && !b.inner) out.push({ sel: b.sel, body: clean.slice(b.open, i), at: stack.map((x) => x.sel) });
+      start = i + 1;
+    } else if (c === ";" && !stack.length) start = i + 1;
+  }
+  return out;
+}
+
+const DARK_SEL = /\[data-(?:theme|mode|color-scheme|scheme|bs-theme)\s*=\s*["']?dark\b|\.(?:dark|theme-dark|dark-mode)\b/i;
+const LIGHT_SEL = /\[data-(?:theme|mode|color-scheme|scheme|bs-theme)\s*=\s*["']?light\b|\.(?:light|theme-light|light-mode)\b/i;
+const blockTheme = (b) => {
+  const media = b.at.join(" ");
+  if (/prefers-color-scheme\s*:\s*dark/i.test(media) || DARK_SEL.test(b.sel)) return "dark";
+  if (/prefers-color-scheme\s*:\s*light/i.test(media) || LIGHT_SEL.test(b.sel)) return "light";
+  return null;
+};
+// :root, html, or a bare theme hook (.dark, [data-theme="dark"]), with or without attribute/class qualifiers
+const isRootish = (sel) => sel.split(",").some((part) => /^(?:(?::root|html)(?:\[[^\]]*\]|\.[\w-]+|:[\w-]+(?:\([^)]*\))?)*|(?:\[[^\]]*\]|\.[\w-]+)+)$/.test(part.trim()));
+
+/**
+ * Custom properties as one theme sees them. A product with two themes defines each token twice; mixing them
+ * reads a light page's status red and a dark theme's near-black as one design. Blocks for the other theme are
+ * dropped; the theme's own root blocks win over plain :root.
+ */
+function rootProps(text, theme = "light") {
+  const props = {};
+  const blocks = cssBlocks(text).map((b) => ({ ...b, theme: blockTheme(b), root: isRootish(b.sel) }));
+  const kept = blocks.filter((b) => b.theme === null || b.theme === theme);
+  const ordered = [
+    ...kept.filter((b) => b.root && b.theme === theme),
+    ...kept.filter((b) => b.root && b.theme === null && /:root\s*$|^html\s*$/.test(b.sel)),
+    ...kept.filter((b) => !(b.root && (b.theme === theme || /:root\s*$|^html\s*$/.test(b.sel)))),
+  ];
   for (const b of ordered) for (const p of b.body.matchAll(/--([a-z0-9-]+)\s*:\s*([^;]+);?/gi)) props[p[1].toLowerCase()] ??= p[2].trim();
   return props;
 }
+
+/** How many tokens a stylesheet defines in either theme; finds the tokens file of a dark-only design too. */
+const tokenCount = (text) => Math.max(Object.keys(rootProps(text, "light")).length, Object.keys(rootProps(text, "dark")).length);
 
 const resolve = (props, v, depth = 0) => {
   const m = /^var\(\s*--([\w-]+)\s*(?:,\s*([^)]+))?\)$/.exec(v?.trim() ?? "");
@@ -199,18 +244,18 @@ function source(target) {
   const stat = fs.statSync(target);
   if (stat.isFile()) {
     const ext = path.extname(target).toLowerCase();
-    const hasTokens = Object.keys(rootProps(fs.readFileSync(target, "utf8"))).length > 0;
+    const hasTokens = tokenCount(fs.readFileSync(target, "utf8")) > 0;
     const html = ext === ".html" ? target : null;
     if (!hasTokens && !html) return null;
     return { isUrl: false, id: target, dir: path.dirname(target), name: path.basename(target).replace(/\.\w+$/, ""), tokens: hasTokens ? target : null, html, files: [target] };
   }
   const files = filesIn(target).slice(0, 40);
   const tokensCss = path.join(target, "tokens.css");
-  let best = fs.existsSync(tokensCss) && Object.keys(rootProps(fs.readFileSync(tokensCss, "utf8"))).length > 0 ? tokensCss : null;
+  let best = fs.existsSync(tokensCss) && tokenCount(fs.readFileSync(tokensCss, "utf8")) > 0 ? tokensCss : null;
   if (!best) {
     let n = 0;
     for (const f of files) {
-      const k = Object.keys(rootProps(fs.readFileSync(f, "utf8"))).length;
+      const k = tokenCount(fs.readFileSync(f, "utf8"));
       if (k > n) [best, n] = [f, k];
     }
   }
@@ -227,10 +272,17 @@ function pickToken(props, re) {
 
 const STATUS_NAME = /(^|-)(ok|warn|warning|err|error|danger|success|up|down|loss|gain|pos|neg|info|alert|bad|good|crit|critical|high|med|low|positive|negative)(-|$)/;
 
-function features(src) {
+/** The theme a page opens in: --theme when given, else what its <html> tag declares, else light. */
+function themeFor(src, flagTheme) {
+  if (flagTheme) return flagTheme;
+  const tag = src.html ? /<html\b[^>]*>/i.exec(fs.readFileSync(src.html, "utf8").slice(0, 4000))?.[0] ?? "" : "";
+  return /data-(?:theme|mode|color-scheme|bs-theme)\s*=\s*["']?dark\b|class\s*=\s*["'][^"']*\bdark\b/i.test(tag) ? "dark" : "light";
+}
+
+function features(src, flagTheme = null) {
   const tokenText = fs.readFileSync(src.tokens, "utf8");
   const all = src.files.map((f) => fs.readFileSync(f, "utf8").slice(0, 400_000)).join("\n");
-  const props = rootProps(tokenText);
+  const props = rootProps(tokenText, themeFor(src, flagTheme));
   const BODY = /(?:^|[\s},])body\s*\{([^}]*)\}/;
   const bodyRule = BODY.exec(tokenText)?.[1] ?? BODY.exec(all)?.[1] ?? "";
   const fromBody = (prop) => {
@@ -509,7 +561,7 @@ function designsAt(target) {
     .map((e) => path.join(abs, e.name))
     .filter((d) => source(d));
   const parts = subs.filter((d) => INTERNAL.test(path.basename(d)));
-  const ownTokens = parts.length > 0 || fs.existsSync(path.join(abs, "tokens.css")) || fs.existsSync(path.join(abs, "index.html")) || fs.readdirSync(abs).some((n) => /\.(css|html)$/.test(n) && Object.keys(rootProps(fs.readFileSync(path.join(abs, n), "utf8"))).length >= 4);
+  const ownTokens = parts.length > 0 || fs.existsSync(path.join(abs, "tokens.css")) || fs.existsSync(path.join(abs, "index.html")) || fs.readdirSync(abs).some((n) => /\.(css|html)$/.test(n) && tokenCount(fs.readFileSync(path.join(abs, n), "utf8")) >= 4);
   return !ownTokens && subs.length >= 2 ? subs : [abs];
 }
 
@@ -574,7 +626,8 @@ export async function run(argv = process.argv.slice(2)) {
     }
   }
 
-  const renderedFps = toRender.length ? await fingerprintPages(toRender) : new Map();
+  const explicitTheme = flags.theme ? themeOf(flags) : null;
+  const renderedFps = toRender.length ? await fingerprintPages(toRender, { theme: explicitTheme ?? "light" }) : new Map();
   for (const [k, v] of preFpMap) renderedFps.set(k, v);
 
   const cache = new Map();
@@ -584,7 +637,7 @@ export async function run(argv = process.argv.slice(2)) {
       try {
         const src = getSrc(p);
         if (src) {
-          const staticFeat = src.tokens ? features(src) : null;
+          const staticFeat = src.tokens ? features(src, explicitTheme) : null;
           const fp = renderedFps.get(p);
           if (fp) f = { ...featuresFromFingerprint(src, fp, staticFeat), src, axes: null };
           else if (staticFeat) f = { ...staticFeat, src, axes: null };

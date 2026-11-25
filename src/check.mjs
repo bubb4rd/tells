@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * tells check: static audit of HTML/CSS/JSX/TSX/MDX source for the tells in rules/anti-slop.md.
+ * tells check: static audit of HTML/CSS/JSX/TSX/MDX source, and scripts that build HTML in strings,
+ * for the tells in rules/anti-slop.md.
  *
  * Usage:
  *   tells check [paths...] [--json] [--strict] [--rule <id>]
@@ -13,10 +14,33 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { configFor, shortcutsIn } from "./config.mjs";
 
 const ROOT = process.cwd();
 const DEFAULT_PATHS = ["."];
-const EXTENSIONS = new Set([".html", ".css", ".tsx", ".jsx", ".mdx"]);
+const EXTENSIONS = new Set([".html", ".css", ".tsx", ".jsx", ".mdx", ".js", ".mjs", ".cjs", ".ts"]);
+// Plain scripts are read only when they build UI: JSX, or HTML in string or template literals.
+const SCRIPT_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".ts"]);
+// JSX, or a line that opens a quoted or template string with a tag: '<div class="x">', `<li>${y}</li>`
+const JSX_IN_SCRIPT = /(?:return|=>)\s*\(?\s*<[A-Za-z][\w.]*[\s>/]/;
+const TAG_IN_STRING = /(['"`])\s*<\/?[a-z][\w-]*(?:\s[^<>]*)?>/i;
+const MIN_MARKUP_LINES = 5; // a script with a stray '<kbd>' in a help string isn't a UI file
+const buildsUi = (file) => {
+  if (!SCRIPT_EXTENSIONS.has(path.extname(file))) return true;
+  if (/\.min\.[cm]?js$|\.(?:test|spec)\.[cm]?[jt]s$|\.d\.ts$/.test(file) || /(?:^|[\\/])__tests__[\\/]/.test(file)) return false;
+  let text;
+  try {
+    text = fs.readFileSync(file, "utf8");
+  } catch {
+    return false;
+  }
+  if (text.length > 2_000_000 || text.split("\n", 400).some((l) => l.length > 3000)) return false; // bundled or minified
+  const code = stripLineComments(stripBlockComments(text));
+  if (JSX_IN_SCRIPT.test(code)) return true;
+  let n = 0;
+  for (const line of code.split("\n")) if (TAG_IN_STRING.test(line) && ++n >= MIN_MARKUP_LINES) return true;
+  return false;
+};
 const SKIP_DIRS = new Set(["node_modules", ".next", ".git", "dist", "build", "out", "coverage", "vendor", "shots"]);
 const GRADIENT_LIMIT = 6;
 const EM_DASH_LIMIT = 1;
@@ -103,7 +127,7 @@ function parseArgs(argv) {
     if (arg.startsWith("--")) {
       const [k, ...rest] = arg.slice(2).split("=");
       if (rest.length) flags[k] = rest.join("=");
-      else if ((k === "rule" || k === "radius" || k === "house" || k === "against") && argv[i + 1] && !argv[i + 1].startsWith("--")) flags[k] = argv[++i];
+      else if ((k === "rule" || k === "radius" || k === "house" || k === "against" || k === "theme") && argv[i + 1] && !argv[i + 1].startsWith("--")) flags[k] = argv[++i];
       else flags[k] = true;
     } else {
       positional.push(arg);
@@ -121,13 +145,13 @@ function walk(target, out) {
     return;
   }
   if (stat.isFile()) {
-    if (EXTENSIONS.has(path.extname(target))) out.push(target);
+    if (EXTENSIONS.has(path.extname(target)) && buildsUi(target)) out.push(target);
     return;
   }
   for (const entry of fs.readdirSync(target, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     if (entry.isDirectory()) {
       if (!SKIP_DIRS.has(entry.name)) walk(path.join(target, entry.name), out);
-    } else if (EXTENSIONS.has(path.extname(entry.name))) {
+    } else if (EXTENSIONS.has(path.extname(entry.name)) && buildsUi(path.join(target, entry.name))) {
       out.push(path.join(target, entry.name));
     }
   }
@@ -272,6 +296,58 @@ function visibleFromJsx(codeLines) {
     out.push([...new Set(segs)]);
   }
   return out;
+}
+
+/**
+ * Visible text from HTML built in string and template literals ('<h1>' + title + '</h1>', `<p>${x}</p>`).
+ * Per line, literal contents are kept and code between them becomes a separator; lines whose literals hold
+ * a tag are read as markup.
+ */
+function visibleFromScriptStrings(codeLines) {
+  let inTemplate = false;
+  let templateHasTag = false;
+  return codeLines.map((line) => {
+    let lit = "";
+    let quote = inTemplate ? "`" : null;
+    let depth = 0;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (!quote) {
+        if (c === "'" || c === '"' || c === "`") quote = c;
+        else lit += "\u0001";
+        continue;
+      }
+      if (c === "\\") {
+        lit += line[i + 1] ?? "";
+        i++;
+      } else if (quote === "`" && c === "$" && line[i + 1] === "{") {
+        depth = 1;
+        i += 2;
+        while (i < line.length && depth) {
+          if (line[i] === "{") depth++;
+          else if (line[i] === "}") depth--;
+          i++;
+        }
+        i--;
+        lit += "\u0001";
+      } else if (c === quote) {
+        quote = null;
+        lit += "\u0001";
+      } else lit += c;
+    }
+    const wasTemplate = inTemplate;
+    inTemplate = quote === "`";
+    const hasTag = /<\/?[a-z][\w-]*[\s>/\u0001]/i.test(lit);
+    if (hasTag) templateHasTag = true;
+    const markup = hasTag || ((wasTemplate || inTemplate) && templateHasTag);
+    if (!inTemplate) templateHasTag = false;
+    if (!markup) return [];
+    return lit
+      .replace(/<[^<>]*>/g, "\u0001")
+      .split(/\u0001+/)
+      .map((t) => decodeEntities(t).replace(/\s+/g, " ").trim())
+      .filter((t) => t && !/[<>]/.test(t));
+  });
 }
 
 function visibleFromMdx(raw) {
@@ -574,7 +650,13 @@ function detectVisible(ctx) {
     const emit = (rule, idx, msg) => ctx.emit(rule, i, idx, msg, true);
     let m;
     if ((m = EMOJI_RE.exec(text))) emit("emoji-sparkle", m.index);
-    if ((m = /⌘\s*\S|⌃\s*\S|↵|\bCtrl\s*\+?\s*K\b/.exec(text))) emit("fake-shortcut", m.index);
+    {
+      const keys = shortcutsIn(text);
+      const declared = ctx.config?.shortcuts;
+      const open = declared?.size ? keys.filter((k) => !declared.has(k.key)) : keys;
+      if (open.length) emit("fake-shortcut", open[0].index);
+      else if (keys.length) ctx.emit("fake-shortcut", i, keys[0].index, null, true, `.tellsrc declares ${keys.map((k) => k.raw).join(", ")}`);
+    }
     for (const d of text.matchAll(/—/g)) ctx.aggregate("em-dash", i, d.index, true);
     if ((m = /DESIGN SYSTEM|\bDesign System\s+\d|\bsystem\s+\d{2}\b/i.exec(text)) && /DESIGN SYSTEM|\d/.test(m[0])) emit("eyebrow-copy", m.index);
     else if ((m = /\bclick (?:any|to copy)\b|\bauthored by\b|\bauthor model\b/i.exec(text))) emit("meta-copy", m.index);
@@ -654,7 +736,13 @@ function auditFile(file, onlyRule, source = null) {
   } else {
     code = stripLineComments(stripBlockComments(raw));
     visible = visibleFromJsx(code.split("\n"));
+    if (SCRIPT_EXTENSIONS.has(ext)) {
+      const strings = visibleFromScriptStrings(code.split("\n"));
+      visible = visible.map((segs, i) => [...new Set([...segs.filter((s) => !/['"`]/.test(s)), ...strings[i]])]);
+    }
   }
+  const rc = configFor(file);
+  const config = rc?.config ?? null;
   const codeLines = code.split("\n");
   const lineStarts = [0];
   for (let k = 0; k < code.length; k++) if (code[k] === "\n") lineStarts.push(k + 1);
@@ -683,11 +771,12 @@ function auditFile(file, onlyRule, source = null) {
     italicClasses: new Set(),
     circleLines: new Set(),
     firstMotion: null,
-    emit(rule, line, col, message = null, fromVisible = false) {
+    config,
+    emit(rule, line, col, message = null, fromVisible = false, declared = null) {
       if (onlyRule && rule !== onlyRule) return;
       const key = `${rule}:${line}`;
       if (candidates.has(key)) return;
-      candidates.set(key, { rule, line, col, message, fromVisible });
+      candidates.set(key, { rule, line, col, message, fromVisible, declared });
     },
     fontUse(font, line, col) {
       if (onlyRule && onlyRule !== "default-font") return;
@@ -737,7 +826,9 @@ function auditFile(file, onlyRule, source = null) {
     const rule = RULE_BY_ID.get(c.rule);
     const s = findSuppression(c.rule, c.line);
     const base = { file: rel, line: c.line + 1, rule: c.rule, severity: rule.severity, category: rule.category, snippet: makeSnippet(c) };
-    if (s) {
+    if (c.declared) {
+      allowed.push({ ...base, reason: c.declared });
+    } else if (s) {
       s.used = true;
       allowed.push({ ...base, reason: s.reason });
     } else {
@@ -792,9 +883,36 @@ function auditFile(file, onlyRule, source = null) {
     }
   }
 
+  // .tellsrc "allow": a project-wide exception, still listed as allowed so it stays visible and counted
+  if (config) {
+    for (let k = hits.length - 1; k >= 0; k--) {
+      const reason = config.allow[hits[k].rule];
+      if (!reason) continue;
+      const { fix, ...h } = hits[k];
+      allowed.push({ ...h, reason: `.tellsrc: ${reason}` });
+      hits.splice(k, 1);
+    }
+  }
+
   hits.sort((a, b) => a.line - b.line || a.rule.localeCompare(b.rule));
   allowed.sort((a, b) => a.line - b.line || a.rule.localeCompare(b.rule));
-  return { hits, allowed };
+  return { hits, allowed, rc };
+}
+
+/** Problems in a .tellsrc itself: bad JSON, an unknown rule, an allow with no reason. Reported once per file. */
+function configHits(rc, onlyRule) {
+  const out = [];
+  const meta = (id, message) => {
+    if (onlyRule && onlyRule !== id) return;
+    const r = RULE_BY_ID.get(id);
+    out.push({ file: display(rc.file), line: 1, rule: id, severity: r.severity, category: r.category, snippet: `(${message})`, fix: r.fix });
+  };
+  if (rc.error) meta("ok-unknown", `.tellsrc ${rc.error}`);
+  for (const [rule, reason] of Object.entries(rc.config.allow)) {
+    if (!RULE_BY_ID.has(rule) && !OTHER_TOOL_RULES.has(rule)) meta("ok-unknown", `.tellsrc allows unknown rule "${rule}"`);
+    else if (!reason) meta("ok-reason", `.tellsrc allows ${rule} with no reason`);
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -908,10 +1026,15 @@ export function run(argv = process.argv.slice(2)) {
 
   const hits = [];
   const allowed = [];
+  const configs = new Set();
   for (const file of files) {
     const result = auditFile(file, onlyRule);
     hits.push(...result.hits);
     allowed.push(...result.allowed);
+    if (result.rc && !configs.has(result.rc.file)) {
+      configs.add(result.rc.file);
+      hits.push(...configHits(result.rc, onlyRule));
+    }
   }
 
   if (flags.json) {
@@ -932,4 +1055,4 @@ export function run(argv = process.argv.slice(2)) {
   if (hits.some((h) => h.severity === "error" || (flags.strict && h.severity === "warn"))) process.exitCode = 1;
 }
 
-export { RULES, RULE_BY_ID, OTHER_TOOL_RULES, auditFile, walk, display, printReport, makePaint, summarize, parseArgs };
+export { RULES, RULE_BY_ID, OTHER_TOOL_RULES, auditFile, configHits, walk, display, printReport, makePaint, summarize, parseArgs };

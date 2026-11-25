@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two themes</title>
+<style>
+  :root { --page: #f4f3ef; --ink: #161614; }
+  @media (prefers-color-scheme: dark) { :root { --page: #0e0e0d; --ink: #edebe4; } }
+  body { margin: 0; padding: 32px; background: var(--page); color: var(--ink); font: 16px/1.5 Georgia, serif; }
+  .dialog { position: fixed; inset: 40px; background: #fff; opacity: 0; pointer-events: none; }
+  .dialog p { color: #222; }
+  label { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; }
+  input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
+</style>
+</head>
+<body>
+  <main>
+    <h1>Payouts</h1>
+    <p>Three shows are waiting on payment from the venue this month.</p>
+    <label><input type="checkbox" checked> Mark the Soundbar show paid</label>
+  </main>
+  <div class="dialog" aria-label="Confirm payout"><p>Confirm the payout of three hundred and forty dollars to the account on file.</p></div>
+</body>
+</html>

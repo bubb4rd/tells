@@ -121,7 +121,7 @@ These aren't style choices. Fail them and the screen is broken for someone.
 Run on the built files. Every hit is removed or justified in writing.
 
 ```bash
-tells check <path>              # static rules over HTML, CSS, JSX, TSX and MDX
+tells check <path>              # static rules over HTML, CSS, JSX, TSX, MDX and UI scripts
 tells render <path-or-url>      # rendered rules in headless Chrome at 1440, 960 and 390
 tells rules                     # list every rule with its fix
 ```

@@ -14,7 +14,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR } from "./cdp.mjs";
+import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR, emulateTheme, themeOf } from "./cdp.mjs";
 
 const ROOT = process.cwd();
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "shots", "_assets"]);
@@ -272,7 +272,7 @@ function walkHtml(target, out) {
   }
 }
 
-export async function measurePages(inputs, { width = 1440, height = 900, shots = null, fullPage = false, timeout = 20000, onPage = null } = {}) {
+export async function measurePages(inputs, { width = 1440, height = 900, shots = null, fullPage = false, timeout = 20000, onPage = null, theme = "light" } = {}) {
   const targets = [];
   for (const inp of inputs) {
     if (/^https?:\/\//i.test(inp)) targets.push({ kind: "url", url: inp, label: inp });
@@ -298,6 +298,7 @@ export async function measurePages(inputs, { width = 1440, height = 900, shots =
       try {
         await browser.send("Page.enable", {}, sessionId);
         await browser.send("Runtime.enable", {}, sessionId);
+        await emulateTheme(browser, sessionId, theme);
         await browser.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width <= 480 }, sessionId);
         const loaded = browser.onceEvent("Page.loadEventFired", sessionId, timeout).catch(() => null);
         await browser.send("Page.navigate", { url }, sessionId, timeout);
@@ -358,7 +359,7 @@ export async function run(argv = process.argv.slice(2)) {
     if (a.startsWith("--")) {
       const [k, ...v] = a.slice(2).split("=");
       if (v.length) flags[k] = v.join("=");
-      else if ((k === "width" || k === "shots") && argv[i + 1] && !argv[i + 1].startsWith("--")) flags[k] = argv[++i];
+      else if ((k === "width" || k === "shots" || k === "theme") && argv[i + 1] && !argv[i + 1].startsWith("--")) flags[k] = argv[++i];
       else flags[k] = true;
     } else positional.push(a);
   }
@@ -366,6 +367,7 @@ export async function run(argv = process.argv.slice(2)) {
     width: flags.width ? parseInt(flags.width, 10) : 1440,
     shots: typeof flags.shots === "string" ? flags.shots : null,
     fullPage: Boolean(flags.full),
+    theme: themeOf(flags),
     onPage: flags.json ? null : (m) => console.log(describe(m) + "\n"),
   });
   if (flags.json) console.log(JSON.stringify(results, null, 2));
