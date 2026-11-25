@@ -1,0 +1,10 @@
+/* A light-first product with an after-dark theme. The dark block alone is near-black + acid green + hairlines. */
+:root[data-theme="dark"] {
+  --bg: #0b0b0a; --ink: #edebe4; --line: #2a2a26; --accent: #3fff6a;
+}
+:root[data-theme="light"] {
+  --bg: #e7e5df; --ink: #121210; --line: #d2cfc6; --accent: #17703a;
+}
+:root { --r: 4px; --font-sans: "Apfel", "Helvetica Neue", sans-serif; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) { --bg: #0b0b0a; --accent: #3fff6a; } }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); }

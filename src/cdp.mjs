@@ -225,3 +225,20 @@ export class CdpBrowser {
 
 export const SETTLE_EXPR =
   "(async () => { if (document.fonts && document.fonts.ready) await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]); for (const a of (document.getAnimations ? document.getAnimations() : [])) { try { a.finish(); } catch {} } await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); })()";
+
+/**
+ * Headless Chrome follows the machine's appearance, so on a Mac in dark mode every page that honours
+ * prefers-color-scheme renders its dark theme. Pin the scheme so results don't depend on the machine:
+ * light by default, `--theme dark` to audit the dark theme.
+ */
+export const THEMES = ["light", "dark"];
+export function themeOf(flags) {
+  const t = flags?.theme === undefined || flags.theme === true ? "light" : String(flags.theme).toLowerCase();
+  if (!THEMES.includes(t)) {
+    console.error(`Error: --theme must be ${THEMES.join(" or ")}, not "${flags.theme}".`);
+    process.exit(2);
+  }
+  return t;
+}
+export const emulateTheme = (browser, sessionId, theme = "light") =>
+  browser.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);

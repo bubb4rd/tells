@@ -69,3 +69,18 @@ test("realistic product screen stays clean across all render rules", { skip }, (
   assert.equal(fp.colourRole, "accent-dots");
   assert.equal(fp.radius, 8);
 });
+
+test("pages render in the light theme unless --theme dark, whatever the machine's appearance", { skip }, () => {
+  const file = path.join(here, "fixtures", "render-theme", "two-themes.html");
+  const light = render(file).out.fingerprints[0].page;
+  const dark = render(file, "--theme", "dark").out.fingerprints[0].page;
+  assert.ok(light.every((c) => c > 200), `light page ${light}`);
+  assert.ok(dark.every((c) => c < 40), `dark page ${dark}`);
+});
+
+test("text inside a faded-out dialog and a labelled checkbox aren't flagged", { skip }, () => {
+  const { out } = render(path.join(here, "fixtures", "render-theme", "two-themes.html"));
+  const rules = out.hits.map((h) => h.rule);
+  assert.ok(!rules.includes("low-contrast"), rules.join(", "));
+  assert.ok(!rules.includes("small-tap-target"), rules.join(", "));
+});

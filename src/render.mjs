@@ -13,7 +13,8 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR } from "./cdp.mjs";
+import { configFor } from "./config.mjs";
+import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR, emulateTheme, themeOf } from "./cdp.mjs";
 
 const ROOT = process.cwd();
 const DEFAULT_PATHS = ["."];
@@ -61,7 +62,7 @@ function parseArgs(argv) {
     if (arg.startsWith("--")) {
       const [k, ...rest] = arg.slice(2).split("=");
       if (rest.length) flags[k] = rest.join("=");
-      else if ((k === "rule" || k === "widths") && argv[i + 1] && !argv[i + 1].startsWith("--")) flags[k] = argv[++i];
+      else if ((k === "rule" || k === "widths" || k === "theme") && argv[i + 1] && !argv[i + 1].startsWith("--")) flags[k] = argv[++i];
       else flags[k] = true;
     } else {
       positional.push(arg);
@@ -187,11 +188,22 @@ function inPageAudit(viewportWidth) {
   };
 
   // Visibility helper
+  // A closed dialog or menu faded to opacity 0 (or marked aria-hidden / inert) hides its whole subtree,
+  // but its children keep opacity 1, so they'd be audited (and score 1:1 contrast) without this.
+  const hiddenTree = new Map();
+  const inHiddenTree = (el) => {
+    if (!el || el.nodeType !== 1) return false;
+    if (hiddenTree.has(el)) return hiddenTree.get(el);
+    const cs = getComputedStyle(el);
+    const hidden = el.getAttribute("aria-hidden") === "true" || el.hasAttribute("inert") || parseFloat(cs.opacity) === 0 || inHiddenTree(el.parentElement);
+    hiddenTree.set(el, hidden);
+    return hidden;
+  };
   const isVisible = (el) => {
     if (!el || el.nodeType !== 1) return false;
-    if (el.getAttribute("aria-hidden") === "true") return false;
+    if (inHiddenTree(el)) return false;
     const cs = getComputedStyle(el);
-    if (cs.display === "none" || cs.visibility === "hidden" || parseFloat(cs.opacity) === 0) return false;
+    if (cs.display === "none" || cs.visibility === "hidden") return false;
     const r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) return false;
     if (cs.clip === "rect(0px, 0px, 0px, 0px)" || cs.clipPath === "inset(50%)") return false;
@@ -474,11 +486,21 @@ function inPageAudit(viewportWidth) {
     // Mobile tap targets (< 44x44)
     if (viewportWidth <= 480 && el.matches('a[href], button, input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"]')) {
       const inProse = tag === "a" && Boolean(el.closest("p, li, dd, blockquote"));
-      if (!inProse && (rect.width < 43.5 || rect.height < 43.5)) {
-        const key = `${tag}.${el.className}:${Math.round(rect.width)}x${Math.round(rect.height)}`;
+      // A checkbox or radio is tapped through its label: measure the label, not the box.
+      let hit = rect;
+      if (tag === "input" && /^(checkbox|radio)$/i.test(el.type)) {
+        const label = el.closest("label") || (el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null);
+        if (label && isVisible(label)) {
+          const lr = label.getBoundingClientRect();
+          const left = Math.min(rect.left, lr.left), top = Math.min(rect.top, lr.top);
+          hit = { width: Math.max(rect.right, lr.right) - left, height: Math.max(rect.bottom, lr.bottom) - top };
+        }
+      }
+      if (!inProse && (hit.width < 43.5 || hit.height < 43.5)) {
+        const key = `${tag}.${el.className}:${Math.round(hit.width)}x${Math.round(hit.height)}`;
         if (!seenTap.has(key) && seenTap.size < 10) {
           seenTap.add(key);
-          add("small-tap-target", describe(el), `${Math.round(rect.width)}x${Math.round(rect.height)}px (< 44x44px)`, el);
+          add("small-tap-target", describe(el), `${Math.round(hit.width)}x${Math.round(hit.height)}px (< 44x44px)`, el);
         }
       }
     }
@@ -1178,7 +1200,7 @@ function inPageAudit(viewportWidth) {
 // ---------------------------------------------------------------------------
 // Runner
 
-async function auditTarget(browser, url, label, widths, onlyRule) {
+async function auditTarget(browser, url, label, widths, onlyRule, theme = "light") {
   const { targetId } = await browser.send("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await browser.send("Target.attachToTarget", { targetId, flatten: true });
   const hits = [];
@@ -1189,6 +1211,7 @@ async function auditTarget(browser, url, label, widths, onlyRule) {
   try {
     await browser.send("Page.enable", {}, sessionId);
     await browser.send("Runtime.enable", {}, sessionId);
+    await emulateTheme(browser, sessionId, theme);
 
     for (const width of widths) {
       await browser.send(
@@ -1261,7 +1284,7 @@ async function auditTarget(browser, url, label, widths, onlyRule) {
 }
 
 /** Fingerprint a batch of HTML files or URLs in one headless Chrome session (used by `tells same`). */
-export async function fingerprintPages(targets, { width = 1440 } = {}) {
+export async function fingerprintPages(targets, { width = 1440, theme = "light" } = {}) {
   const out = new Map();
   if (!targets.length) return out;
   const files = targets.filter((t) => t.kind === "file").map((t) => t.file);
@@ -1273,7 +1296,7 @@ export async function fingerprintPages(targets, { width = 1440 } = {}) {
     await browser.ready();
     for (const t of targets) {
       const url = t.kind === "url" ? t.url : fileToUrl(srv.baseUrl, serveRoot, t.file);
-      const { fingerprint } = await auditTarget(browser, url, t.label ?? t.id, [width], null);
+      const { fingerprint } = await auditTarget(browser, url, t.label ?? t.id, [width], null, theme);
       if (fingerprint) out.set(t.id, fingerprint);
     }
   } finally {
@@ -1418,6 +1441,7 @@ export async function run(argv = process.argv.slice(2)) {
     process.exit(2);
   }
 
+  const theme = themeOf(flags);
   const explicitWidths = flags.widths
     ? String(flags.widths)
         .split(",")
@@ -1477,8 +1501,15 @@ export async function run(argv = process.argv.slice(2)) {
     await browser.ready();
     for (const t of targets) {
       const url = t.kind === "url" ? t.url : fileToUrl(srv.baseUrl, serveRoot, t.file);
-      const found = await auditTarget(browser, url, t.label, t.widths, onlyRule);
-      rawHits.push(...found.hits);
+      const found = await auditTarget(browser, url, t.label, t.widths, onlyRule, theme);
+      // .tellsrc "allow": project-wide exceptions, still reported as allowed
+      const allow = t.kind === "file" ? configFor(t.file)?.config.allow ?? {} : {};
+      for (const h of found.hits) {
+        if (allow[h.rule]) {
+          const { fix, ...rest } = h;
+          rawAllowed.push({ ...rest, reason: `.tellsrc: ${allow[h.rule]}` });
+        } else rawHits.push(h);
+      }
       rawAllowed.push(...found.allowed);
       if (found.fingerprint) fingerprints.push(found.fingerprint);
     }
