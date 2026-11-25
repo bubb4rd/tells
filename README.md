@@ -35,7 +35,7 @@
 A tell is the mark that gives a screen away as default output: the uppercase eyebrow over every heading, the purple gradient, the pill buttons, the three cards with icons in tinted squares, "Get started →". tells names them, catches the ones a machine can catch, and rewrites the ones with a single correct fix.
 
 - **A rule set** ([`rules/anti-slop.md`](rules/anti-slop.md)) that names each tell and says what to do instead.
-- **Two linters.** `tells check` reads HTML, CSS, JSX, TSX and MDX source. `tells render` loads pages in headless Chrome and checks contrast, overflow, tap targets, headings and images.
+- **Two linters.** `tells check` reads HTML, CSS, JSX, TSX and MDX source, and scripts that build HTML in strings. `tells render` loads pages in headless Chrome and checks contrast, overflow, tap targets, headings and images.
 - **A fixer.** `tells fix` rewrites the hits that don't depend on the subject and reports the rest.
 - **A loop with no picks.** `tells make` builds several variants of a brief in parallel with an agent, fixes them, and chooses one with `tells pick`, by checks and not by a taste score. Give it a reference screen and each agent studies that screen's finish before it builds.
 - **A reference library.** `tells refs` keeps the shipped screens whose finish you want to reach, each with why it's good. Choosing them is how your taste gets in.
@@ -70,7 +70,7 @@ tells measure http://localhost:3000                 # lead, density and type ste
 ```
 
 ```
-tells check  [paths...]        Static audit of HTML, CSS, JSX, TSX and MDX source
+tells check  [paths...]        Static audit of HTML, CSS, JSX, TSX, MDX and UI scripts
 tells fix    [paths...]        Rewrite the hits that have one right answer, then report the rest
 tells render [files|dirs|urls] Rendered audit in headless Chrome at 1440, 960 and 390px
 tells same   [designs|urls...] Catch a design that lands on a cliché cluster, your house style or a sibling
@@ -99,10 +99,15 @@ tells rules  [check|render|same] List every rule with its severity and fix
 --full          measure, refs add: screenshot the whole page, up to 4,000px
 --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
 --no-render     same, pick, make: skip the headless Chrome checks
+--theme <t>     render, same, measure: light (default) or dark, whatever the machine is set to
 --widths a,b,c  Viewport widths for render
 ```
 
 Every command exits 1 when errors are left, so they work in CI as they are. Files with `mobile` in their path render at 390px only, unless you pass `--widths`.
+
+A `.js`, `.mjs` or `.ts` file is checked when it builds UI: JSX, or at least five lines of HTML in string or template literals (`'<h1>' + title + '</h1>'`). Tests, minified files and plain scripts are skipped.
+
+Headless Chrome follows the machine's appearance, so a Mac in dark mode would audit every page's dark theme. Rendered commands pin `prefers-color-scheme: light`; pass `--theme dark` to audit the dark theme. `same` reads tokens the same way: a product's dark-theme block doesn't count against its light design.
 
 Here is `tells fix` on the left half of the picture above ([`docs/shots/hero.html`](docs/shots/hero.html)), with long snippets shortened:
 
@@ -137,6 +142,17 @@ Some tells are right for a subject. Allow one hit with a comment on the same lin
 ```
 
 A `tells-ok` with no reason, or with a rule that doesn't exist, is itself an error. `slop-ok:` works as an alias. For rendered checks in frameworks that strip HTML comments, `data-tells-ok="<rule-id> <reason>"` on the element or an ancestor works the same way.
+
+Facts about the whole project go in a `.tellsrc` (JSON) at its root. The nearest one above a file applies:
+
+```json
+{
+  "shortcuts": ["⌘K", "⌘1", "Cmd+Shift+3"],
+  "allow": { "default-font": "Apfel Grotezk is the licensed brand face" }
+}
+```
+
+`shortcuts` lists the keys the product really binds, so `fake-shortcut` skips them and still flags any other. `allow` accepts a `check` or `render` rule across the project; it needs a reason, and every hit it covers is still listed as allowed, so `pick` still counts it.
 
 ## Fix
 
