@@ -226,7 +226,7 @@ tells make "a coffee roaster's back office" --product --reference plausible \
 tells make --resume tells-make/<run> --approve v1
 ```
 
-1. **System.** Each variant (two by default) builds the whole product's system: tokens, every part, one chart style, a shell drawn by one script, a store shared across pages, one world of sample facts for every screen, the contracts for shared state (`CONTRACTS.md`), the rules for later builders (`SYSTEM.md`), and the first two screens. Then it stops, and `CHECKPOINT.md` shows each variant's lead screens.
+1. **System.** Each variant (two by default) builds the whole product's system: tokens, every part, one chart language with the marks each screen's shape needs, a shell drawn by one script, a store shared across pages, one world of sample facts for every screen, the contracts for shared state (`CONTRACTS.md`), the rules for later builders (`SYSTEM.md`), and the first two screens. Then it stops, and `CHECKPOINT.md` shows each variant's lead screens.
 2. **You approve one.** `--resume <run> --approve <v>`.
 3. **Screens.** One agent per remaining screen, `--concurrency` at a time, each in its own copy of the approved product. Only the files it owns come back; parts it had to build outside the system are written down for the review.
 4. **Review.** `tells consistent`, `check` and `render` across the screens, then one agent folds the needs into the system, fixes drift and walks the contracts. `REPORT.md` has the before and after.
@@ -362,7 +362,7 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 | `drift-heading` | warn | Use the system's heading sizes; the same level is the same size on every screen. |
 | `drift-page` | error | Every screen sits on the same page colour. |
 | `drift-panel` | error | Use the system's panel: same radius, surface and line on every screen. |
-| `drift-chart` | error | One chart mark across the product. Draw this trend with the system's mark. |
+| `one-shape` | warn | Every screen draws its data with the same one mark. Share the chart language (axis, labels, tooltip, colours), not the shape: draw each screen's main object the way it works (a day as a timeline, a process as stages, a level running down to a date). |
 | `drift-shell` | error | Every screen sits in the same shell (navigation and layout). |
 | `drift-accent` | warn | This screen brings in a colour the system doesn't use. Use the system's accent, or the system's status colours. |
 <!-- /rules:consistent -->

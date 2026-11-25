@@ -23,7 +23,7 @@ export const RULES = [
   { id: "drift-heading", severity: "warn", fix: "Use the system's heading sizes; the same level is the same size on every screen." },
   { id: "drift-page", severity: "error", fix: "Every screen sits on the same page colour." },
   { id: "drift-panel", severity: "error", fix: "Use the system's panel: same radius, surface and line on every screen." },
-  { id: "drift-chart", severity: "error", fix: "One chart mark across the product. Draw this trend with the system's mark." },
+  { id: "one-shape", severity: "warn", fix: "Every screen draws its data with the same one mark. Share the chart language (axis, labels, tooltip, colours), not the shape: draw each screen's main object the way it works (a day as a timeline, a process as stages, a level running down to a date)." },
   { id: "drift-shell", severity: "error", fix: "Every screen sits in the same shell (navigation and layout)." },
   { id: "drift-accent", severity: "warn", fix: "This screen brings in a colour the system doesn't use. Use the system's accent, or the system's status colours." },
 ];
@@ -125,12 +125,13 @@ export function compare(screens, leadLabels = []) {
       if (dist(hexRgb(t.panel.border), hexRgb(panel.border)) > 10) off.push(`line ${t.panel.border} vs ${panel.border}`);
       if (off.length) add(s, "drift-panel", off.join(", "));
     }
-    const otherMarks = system.mark ? t.marks.filter((m) => m !== system.mark && m !== "canvas") : t.marks.length > 1 ? t.marks.slice(1) : [];
-    if (otherMarks.length) add(s, "drift-chart", `${otherMarks.join(", ")} charts (system: ${system.mark ?? t.marks[0]})`);
     if (system.layout && t.layout && t.layout !== system.layout) add(s, "drift-shell", `${t.layout} (system: ${system.layout})`);
     const newHues = t.accents.filter((a) => !sysAccents.has(a));
     if (newHues.length && sysAccents.size) add(s, "drift-accent", `hue ${newHues.map((h) => h * 30 + "°").join(", ")} isn't in the system`);
   }
+  // The opposite drift: a product of three or more screens that draws everything with the same one mark.
+  const only = screens.length >= 3 && screens.every((s) => s.traits.marks.length === 1 && s.traits.marks[0] === screens[0].traits.marks[0] && s.traits.marks[0] !== "canvas");
+  if (only) for (const s of screens) if (!leadLabels.includes(s.label)) add(s, "one-shape", `only ${s.traits.marks[0]}, like every other screen`);
   return { system, hits };
 }
 

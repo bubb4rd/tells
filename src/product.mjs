@@ -8,7 +8,7 @@
  *   tells make --resume <out> --approve v1      continue from the system you chose
  *   tells make --resume <out>                   pick up a stopped run (failed screens run again)
  *
- * 1. System: each variant designs the whole product's system (tokens, parts, shell, store, one chart style),
+ * 1. System: each variant designs the whole product's system (tokens, parts, shell, store, one chart language),
  *    one world of sample facts, the shared-state contracts, and the first two screens. Then it stops: a person
  *    looks at the lead screens and approves one system. Taste is decided once, where it matters.
  * 2. Screens: one agent per remaining screen, in parallel, each in its own copy of the approved product. Only

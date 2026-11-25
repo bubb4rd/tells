@@ -102,7 +102,7 @@ const OTHER_TOOL_RULES = new Set([
   "cluster-warm-paper", "cluster-acid-dark", "cluster-neo-swiss", "cluster-glow-void",
   "cluster-soft-commerce", "house-style", "token-copy",
   // consistent
-  "drift-typeface", "drift-heading", "drift-page", "drift-panel", "drift-chart", "drift-shell", "drift-accent",
+  "drift-typeface", "drift-heading", "drift-page", "drift-panel", "one-shape", "drift-shell", "drift-accent",
 ]);
 
 const DEFAULT_FONTS = [
