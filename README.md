@@ -30,7 +30,7 @@
   <a href="#faq">FAQ</a>
 </p>
 
-<p align="center"><img src="docs/assets/hero.png" alt="Two versions of a bike shop's booking screen. On the left, default output: a dark panel with a purple glow, a tracked uppercase eyebrow, a gradient headline with an italic accent word and a sparkle emoji, a pill button reading Get started with an arrow, a Fast, Secure, Simple tagline and three glass cards. Each one is circled in red pencil and labelled with the tells rule that catches it. On the right, the same screen built from its subject: the shop's name and street, a plain serif headline, Book a repair, the turnaround, three prices, a Book a drop-off slot button and the next free slot."></p>
+<p align="center"><img src="docs/assets/hero.png" alt="One brief, a repair desk screen for a bike shop's staff, built three ways. Default output, a dark purple screen with a gradient headline and glass cards, is struck through in red pencil: check finds gradient-text, glass and 11 more, and same calls it cluster-glow-void. The build from taste-skill, a beige three-pane app in navy, is struck through too: render finds nested-cards and low-contrast. The screen built with tells breaks no rules and is shown large: Spoke and Chain&#39;s repair desk, with a stand schedule for three mechanics, all fourteen bikes on the floor with job, mechanic, status and due time, quotes waiting on customers, and parts due in."></p>
 
 A tell is the mark that gives a screen away as default output: the uppercase eyebrow over every heading, the purple gradient, the pill buttons, the three cards with icons in tinted squares, "Get started →". tells names them, catches the ones a machine can catch, and rewrites the ones with a single correct fix.
 
@@ -117,21 +117,20 @@ A `.js`, `.mjs` or `.ts` file is checked when it builds UI: JSX, or at least fiv
 
 Headless Chrome follows the machine's appearance, so a Mac in dark mode would audit every page's dark theme. Rendered commands pin `prefers-color-scheme: light`; pass `--theme dark` to audit the dark theme. `same` reads tokens the same way: a product's dark-theme block doesn't count against its light design.
 
-Here is `tells fix` on the left half of the picture above ([`docs/shots/hero.html`](docs/shots/hero.html)), with long snippets shortened:
+Here is `tells fix` on the default output in the picture above ([`docs/shots/hero/default.html`](docs/shots/hero/default.html)), with long snippets shortened:
 
 ```
 Fixed  2 changes
-  hero.html:26  pill-radius   .pill { … border-radius: 6px; background: #7c3aed; … }
-  hero.html:57  arrow-suffix  <span class="pill" …>Get started</span>
+  default.html:21  pill-radius   .pill { … border-radius: 6px; background: var(--violet); … }
+  default.html:34  arrow-suffix  <span class="pill">Get started</span>
 
-hero.html  10 error, 3 warn
-  hero.html:12  [warn]  default-font    (Inter, 2 lines) …family=Inter:wght@400;700…
-  hero.html:20  [error] glow-blur       (blur 60px) …radial-gradient(circle, #8b5cf6, transparent 70%); filter: blur(60px); }
-  hero.html:21  [warn]  tracked-caps    (.eyebrow) …letter-spacing: 0.18em; text-transform: uppercase; …
-  hero.html:24  [error] gradient-text   …-webkit-background-clip: text; background-clip: text; color: transparent; }
-  hero.html:55  [error] italic-accent   Bike repair, reimagined ✨
-  hero.html:57  [error] generic-cta     Get started
-  hero.html:58  [error] dot-triplet     Fast · Secure · Simple
+default.html  10 error, 3 warn
+  default.html:9   [warn]  default-font    (Inter, 2 lines) …family=Inter:wght@400;700…
+  default.html:15  [error] glow-blur       (blur 80px) …radial-gradient(circle, #8b5cf6, transparent 70%); filter: blur(80px); }
+  default.html:17  [warn]  tracked-caps    (.eyebrow) …letter-spacing: 0.18em; text-transform: uppercase; …
+  default.html:19  [error] gradient-text   …-webkit-background-clip: text; background-clip: text; color: transparent; }
+  default.html:32  [error] italic-accent   Repairs, reimagined ✨
+  default.html:34  [error] generic-cta     Get started
   …
 ```
 
