@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -195,4 +195,34 @@ test("--style takes the look from the reference; without it the palette comes fr
   for (const p of [styled, plain]) assert.doesNotMatch(p, /\{\{\w+\}\}/);
   const [cur] = studyPrompts("x", 1, refs, { current: "current.png" });
   assert.match(cur, /Never invent names, numbers, tracks or rows/);
+});
+
+test("a built product goes back with --revise product: notes in, deletions and exceptions handled, report updated", { skip: skipChrome }, () => {
+  const out = mkdtempSync(path.join(tmpdir(), "tells-polish-"));
+  const product = path.join(out, "product");
+  const page = (t) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${t}</title></head><body><main><h1>${t}</h1><p>Two orders ship today.</p></main></body></html>`;
+  mkdirSync(path.join(product, "screens"), { recursive: true });
+  for (const id of ["today", "orders", "stock"]) writeFileSync(path.join(product, "screens", `${id}.html`), page(id));
+  writeFileSync(path.join(product, "screens", "old.css"), "a { color: red }\n");
+  writeFileSync(path.join(out, "outside.txt"), "stays\n");
+  const screens = [{ id: "today", job: "t" }, { id: "orders", job: "o" }, { id: "stock", job: "s" }];
+  writeFileSync(path.join(out, "product.json"), JSON.stringify({ brief: "a roaster", screens, stage: "done", approved: "v1", runs: {}, built: {}, result: { before: "b", after: "a" } }));
+  const polish = `"${process.execPath}" "${path.join(here, "fixtures", "make", "fake-polish.mjs")}"`;
+
+  const bad = tells("make", "--resume", out, "--revise", "v1", "--notes", "x");
+  assert.equal(bad.status, 2);
+  const r = tells("make", "--resume", out, "--revise", "product", "--notes", "the tabs sit too high", "--agent", polish);
+  assert.match(r.stdout, /round 1/);
+  assert.match(readFileSync(path.join(product, "POLISH.md"), "utf8"), /## Round 1/);
+  assert.ok(!existsSync(path.join(product, "screens", "old.css")), "listed file inside the product is deleted");
+  assert.ok(existsSync(path.join(out, "outside.txt")), "a path outside the product is never deleted");
+  assert.ok(existsSync(path.join(product, ".tellsrc.proposed")), "an allow the agent wrote is set aside");
+  const state = JSON.parse(readFileSync(path.join(out, "product.json"), "utf8"));
+  assert.equal(state.polishes.length, 1);
+  assert.deepEqual(state.polishes[0].deleted, ["screens/old.css"]);
+  assert.match(readFileSync(path.join(out, "REPORT.md"), "utf8"), /After your notes, round 1: consistent/);
+  assert.ok(existsSync(path.join(out, "POLISH-PROMPT-1.md")));
+
+  tells("make", "--resume", out, "--revise", "product", "--notes", "the tabs sit too high", "--agent", polish);
+  assert.match(readFileSync(path.join(product, "POLISH.md"), "utf8"), /## Round 1[\s\S]*## Round 2/);
 });
