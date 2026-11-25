@@ -71,7 +71,7 @@ const OTHER_TOOL_RULES = new Set([
   "horizontal-overflow", "clipped-text", "cramped-padding", "tall-top-nav",
   "icon-feature-grid", "stat-strip", "template-hero-stack", "word-only-screen",
   "low-contrast", "accent-rainbow", "tiny-text", "long-measure",
-  "flat-type-hierarchy", "missing-tabular-nums", "mono-costume", "small-tap-target",
+  "flat-type-hierarchy", "missing-tabular-nums", "mono-costume", "eyebrow-label", "small-tap-target",
   "concentric-radius", "split-surface", "nested-cards", "broken-image",
   "duplicate-avatar", "skipped-heading", "missing-focus-ring",
   // same
@@ -428,6 +428,8 @@ function detectBlocks(ctx) {
   for (const m of ctx.code.matchAll(/\bclass(?:Name)?\s*=\s*(?:"([^"]*)"|'([^']*)'|\{\s*`([^`]*)`)/g)) {
     const cls = m[1] ?? m[2] ?? m[3];
     const tokens = cls.split(/\s+/);
+    // a label named for what it is: the eyebrow over a heading, however it's styled
+    if (tokens.some((t) => /^(?:eyebrow|kicker|overline|pretitle|supertitle)(?:$|[-_])/i.test(t))) ctx.emit("eyebrow-copy", ctx.lineOf(m.index), ctx.colOf(m.index), "eyebrow class");
     if (!tokens.includes("uppercase")) continue;
     const tracked = tokens.some((t) => /^tracking-(?:wide|wider|widest|\[(?!-)[\d.]+\w*\])$/.test(t));
     ctx.emit(tracked ? "tracked-caps" : "uppercase", ctx.lineOf(m.index), ctx.colOf(m.index));
@@ -545,7 +547,7 @@ function detectCodeLines(ctx) {
 }
 
 const SPEC_ADJ_RE = /\b(?:high-voltage|surgical|razor-sharp|calibrated|stunning|premium|cutting-edge|world-class|seamless(?:ly)?|effortless(?:ly)?|pixel-perfect|next-gen(?:eration)?|blazing(?:ly)?[- ]fast)\b/i;
-const STATUS_PHRASE_RE = /all systems (?:are )?operational|now in beta|commissions open|systems? nominal/i;
+const STATUS_PHRASE_RE = /all systems (?:are )?operational|now in beta|commissions open|systems? nominal|\b\d{1,2}:\d{2}(?::\d{2})?\s+(?:to|until|till)\s+(?:close|closing|start|drop|go|launch|kick-?off|lock)\b/i;
 const STATUS_BADGE_RE = /^[●•◉·○\s]*(?:LIVE|BETA|NEW|ALPHA|Live|Beta|Alpha)$/;
 const CTA_RE = /^(?:Get started|Learn more|Explore|Read more|See more|Discover more|Browse)\b/i;
 const PLACEHOLDER_COPY_RE = /\b(?:john\s+doe|jane\s+doe|lorem\s+ipsum|dolor\s+sit\s+amet|user\s+name|acme\s+(?:corp|inc|co))\b|@username\b/i;

@@ -37,6 +37,7 @@ const RULES = [
   { id: "long-measure", category: "type", severity: "warn", fix: "Constrain multi-line prose blocks to <= 80ch for readability." },
   { id: "flat-type-hierarchy", category: "type", severity: "warn", fix: "Establish clear type hierarchy: largest heading should be >= 1.2x body font size." },
   { id: "missing-tabular-nums", category: "type", severity: "warn", fix: "Set font-variant-numeric: tabular-nums on numeric table cells and changing figures so digits align vertically." },
+  { id: "eyebrow-label", category: "type", severity: "error", fix: "Drop the small tracked caps label over the heading. If what it says matters, put it in the heading or in a metadata line the reader uses." },
   { id: "mono-costume", category: "type", severity: "warn", fix: "Reserve monospace for code, tabular figures, and copyable values (IDs, hex, paths), not prose or uppercase labels." },
   { id: "small-tap-target", category: "mobile", severity: "warn", fix: "Make mobile interactive controls at least 44x44px (or expand their hit area)." },
   { id: "concentric-radius", category: "surfaces", severity: "warn", fix: "Match concentric radii on tightly inset surfaces (outerRadius = innerRadius + padding + borderWidth)." },
@@ -435,6 +436,25 @@ function inPageAudit(viewportWidth) {
     // Heading sequence tracking
     if (/^h[1-6]$/.test(tag)) {
       headingLevels.push({ level: Number(tag[1]), el });
+    }
+
+    // Eyebrow: a short, small, tracked caps label straight above a heading, whatever the markup calls it
+    if (/^h[1-3]$/.test(tag)) {
+      let prev = el.previousElementSibling;
+      while (prev && !(prev.textContent || "").trim()) prev = prev.previousElementSibling;
+      if (prev && !prev.matches("h1, h2, h3, h4, h5, h6, nav, header, ul, ol, table, form, img, svg")) {
+        const pcs = getComputedStyle(prev);
+        const text = (prev.textContent || "").replace(/\s+/g, " ").trim();
+        const letters = text.replace(/[^A-Za-z]/g, "");
+        const caps = pcs.textTransform === "uppercase" || (letters.length >= 3 && letters === letters.toUpperCase());
+        const ls = parseFloat(pcs.letterSpacing) || 0;
+        const size = parseFloat(pcs.fontSize) || 16;
+        const headSize = parseFloat(cs.fontSize) || 16;
+        const prect = prev.getBoundingClientRect();
+        if (caps && ls >= size * 0.04 && size <= 15 && size <= headSize * 0.6 && text.length >= 2 && text.length <= 72 && prect.height > 0 && prect.bottom <= rect.top + 4) {
+          add("eyebrow-label", describe(prev), `"${text.slice(0, 40)}" over ${tag}`, prev);
+        }
+      }
     }
 
     // Long prose measure (> 80ch on multi-line paragraphs)

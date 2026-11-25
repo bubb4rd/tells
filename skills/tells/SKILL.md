@@ -43,6 +43,8 @@ Don't stop to ask the user to pick, and don't ask a model which looks better: LL
 
 `node TELLS/bin/tells.mjs pick <variant folders> --against <past designs>` runs that order for you. To build the variants too, unattended, use `node TELLS/bin/tells.mjs make "<brief>"`.
 
+When you can name a shipped screen of the nearest kind (a real product, not a concept shot), pass it: `make "<brief>" --reference <url>`, or `--kind <kind>` for the user's library (`tells refs`). Each agent then studies the reference's finish before building, and the results are much closer to shipped work than variants built from rules alone. The structure still comes from the job and the palette from the subject. To study a reference yourself, rebuild it, write down its decisions in px and counts, and compare your screen against it with `tells measure <page> --shots <dir>`.
+
 If `pick` calls clean variants a tie, either is fine for an unattended run. That's polish the checks can't see yet, so name the tie in your report rather than inventing a reason.
 
 Report the winner, what ruled out the others, and every exception it keeps. Bring in a person only when the user asks for one. See `TELLS/playbook/taste.md` for the evidence.

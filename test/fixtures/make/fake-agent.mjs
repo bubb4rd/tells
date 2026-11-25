@@ -10,3 +10,5 @@ const from = { 1: "rough", 2: "clean", 3: "excused" }[k];
 if (!from) process.exit(1);
 fs.copyFileSync(path.join(pick, from, "index.html"), "index.html");
 fs.writeFileSync("NOTES.md", `Variant ${k}, copied from the ${from} fixture.\n`);
+// A study prompt also gets a rebuild of the reference, which carries tells of its own and mustn't count against the variant.
+if (prompt.includes("reference-1.png")) fs.writeFileSync("study.html", '<button style="border-radius: 999px">Get started →</button>\n');

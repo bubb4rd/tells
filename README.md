@@ -37,7 +37,8 @@ A tell is the mark that gives a screen away as default output: the uppercase eye
 - **A rule set** ([`rules/anti-slop.md`](rules/anti-slop.md)) that names each tell and says what to do instead.
 - **Two linters.** `tells check` reads HTML, CSS, JSX, TSX and MDX source. `tells render` loads pages in headless Chrome and checks contrast, overflow, tap targets, headings and images.
 - **A fixer.** `tells fix` rewrites the hits that don't depend on the subject and reports the rest.
-- **A loop with no picks.** `tells make` builds several variants of a brief in parallel with an agent, fixes them, and chooses one with `tells pick`, by checks and not by a taste score.
+- **A loop with no picks.** `tells make` builds several variants of a brief in parallel with an agent, fixes them, and chooses one with `tells pick`, by checks and not by a taste score. Give it a reference screen and each agent studies that screen's finish before it builds.
+- **A reference library.** `tells refs` keeps the shipped screens whose finish you want to reach, each with why it's good. Choosing them is how your taste gets in.
 - **A sameness check.** `tells same` catches a design that lands on one of the five cliché looks, on your own house style, or on a copy of a sibling.
 - **A playbook** ([`playbook/`](playbook)) for building a design system from a subject, reviewing it, and measuring taste.
 
@@ -64,7 +65,8 @@ tells fix ./src                                     # rewrite what has one answe
 tells check ./src                                   # report only
 tells render ./dist/index.html http://localhost:3000
 tells same design-systems/                          # each design against the clichés and the others
-tells make "a shift handover screen for night nurses" # brief in, one checked screen out
+tells make "a shift handover screen for night nurses" --kind list # brief in, one checked screen out
+tells measure http://localhost:3000                 # lead, density and type steps, as numbers
 ```
 
 ```
@@ -74,6 +76,8 @@ tells render [files|dirs|urls] Rendered audit in headless Chrome at 1440, 960 an
 tells same   [designs|urls...] Catch a design that lands on a cliché cluster, your house style or a sibling
 tells pick   <variants...>     Choose between variants with checks: errors, exceptions, sameness, warnings
 tells make   "<brief>"         Build variants in parallel with an agent, fix them, pick one, write a report
+tells measure [files|urls...]  Profile a rendered screen: lead, density, type steps, alignment
+tells refs   [add|remove]      Your library of reference screens for make --reference
 tells rules  [check|render|same] List every rule with its severity and fix
 
 --json          Machine-readable output
@@ -84,7 +88,15 @@ tells rules  [check|render|same] List every rule with its severity and fix
 --house <path>  same, pick, make: compare with this design instead of the majority
 --against <p>   same, pick, make: past designs to compare with (repeatable)
 --rendered      same: fingerprint rendered styles, colour role and layout in headless Chrome
+--reference <r> make: study this screen (library name, URL, HTML or image; repeatable)
+--kind <k>      make: study every library reference of this kind
+--page <p>      make: landing or product (default: guessed from the brief)
+--assets <dir>  make: real logos, photos and art for the agents to use
+--current <png> make: a screenshot of the page being redesigned
+--style         make: take the look from the reference too, not only its finish
 --variants <n>  make: how many to build (default 4)
+--shots <dir>   measure: save a 1440×900 screenshot of each page
+--full          measure, refs add: screenshot the whole page, up to 4,000px
 --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
 --no-render     same, pick, make: skip the headless Chrome checks
 --widths a,b,c  Viewport widths for render
@@ -167,13 +179,39 @@ If the subject earns the look, say so in its `tokens.css`, `DESIGN.md` or `direc
 `tells make` takes a brief and returns one checked screen, with nothing to answer in between.
 
 ```sh
-tells make "a shift handover screen for night nurses on a hospital ward" --against design-systems/
+tells make "a shift handover screen for night nurses on a hospital ward" --reference https://github.com/vercel/next.js/issues
 ```
 
-1. **Prompts.** One per variant (four by default), each with a different angle on the subject: its data, its documents, its place, its people, its rhythm or its region. Every angle leads with the product; none is a metaphor.
+1. **Prompts.** One per variant (four by default).
+   - **With references** (`--reference`, or `--kind` for every library reference of that kind), each agent rebuilds the nearest reference to learn its finish and writes down its decisions in px and counts (`STUDY.md`). Then it builds the brief: the structure comes from the job, the finish from the reference, and the palette from the subject. Last, it critiques its screen against the reference twice (`CRITIQUE.md`) and clears `check` and `render` with `--strict`. The rule set wins wherever it and the reference disagree: shipped work carries tells too, and an agent told only to match a reference copies its eyebrows and tracked caps along with its finish.
+   - **Landing pages** (a brief that names a landing page, homepage or website, or `--page landing`) get a different study: the reference's hero, how its imagery carries the page, and the pacing of loud and quiet sections, from full-page screenshots. Give real logos and photos with `--assets <dir>`; without them, each agent draws its own marks and key art in SVG and CSS.
+   - **With several references,** variants take turns at which one they study, so they don't all converge on one.
+   - **Without**, each variant gets a different angle on the subject: its data, its documents, its place, its people, its rhythm or its region.
 2. **Build.** An agent per variant, in parallel, each in its own folder. The default is Claude Code (`claude -p`, limited to reading, writing and running `node`). `--agent` takes any command that reads a prompt on stdin.
 3. **Fix and pick.** `tells fix` on every variant, then `tells pick`: fewest rules broken, then fewest written exceptions, then off the cliché clusters and your house style. Warnings are shown but don't decide.
-4. **Report.** `REPORT.md` has the ranking, why each loser lost, and the winner. Each variant keeps its prompt, the agent's log and its `NOTES.md`, which says where each colour comes from.
+4. **Report.** `REPORT.md` has the ranking, why each loser lost, and the winner. Each variant keeps its prompt, the agent's log and its `NOTES.md`; a reference run also keeps the study and both critiques, with the rebuild in `shots/` so it isn't checked as the variant.
+
+References change the result more than any rule did. On a night-nurse handover brief with GitHub's issue list as the reference, a different subject, the study variants came out as ward tools: patients sorted by deterioration score, flags as small chips, about 160 items on the first screen. The angle variants led with a 152px "3" on pale paper and held 51 to 105 ([`taste.md`](playbook/taste.md#learn-finish-from-a-reference)).
+
+### References
+
+```sh
+tells refs add https://plausible.io/plausible.io --kind dashboard --why "six numbers, one chart, two tables, nothing louder than 19px"
+tells refs                                      # list the library
+tells make "a dashboard for a small newsletter" --kind dashboard
+```
+
+A reference is a 1440×900 screenshot of a shipped screen, its URL, a kind and one line on why it's good. The library lives in `~/.tells/references` (or `$TELLS_REFERENCES`), outside your repo, because the screenshots are other people's work. `--reference` also takes a URL, an HTML file or an image directly.
+
+Pick screens a good team has refined against real use, not concept shots. The nearest kind is enough: a list of issues teaches a list of patients.
+
+### Measure
+
+```sh
+tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
+```
+
+`tells measure` profiles a rendered screen instead of passing or failing it: what leads the first screen (a number, a name or a sentence) and how big it is next to body text, how many items the first screen holds, how many type sizes, weights and colours carry the page, and how many text blocks share a left edge. Agents use it to compare their screen with a reference. Read the numbers against shipped screens of the same kind: on 28 shipped product pages the lead ran 1.4 to 3.5 times body size, and every variant built from angles ran 4.5 to 13.
 
 `tells pick` also works on its own, on variants from anywhere. On seven past rounds it agreed with the picker on 65% of the pairs it decided, and a top-half cut kept the picker's winner in 5.2 of 7 rounds, against 3.8 at random. It's good at cutting default-looking work. It can't yet choose between clean refinements of one design, and calls those ties. It doesn't use a taste model: one was tested on 15 generated rounds held out of training and did no better than chance ([`taste.md`](playbook/taste.md#checks-choose-some-rounds-not-all)).
 
@@ -240,6 +278,7 @@ tells make "a shift handover screen for night nurses on a hospital ward" --again
 | `long-measure` | warn | type | Constrain multi-line prose blocks to <= 80ch for readability. |
 | `flat-type-hierarchy` | warn | type | Establish clear type hierarchy: largest heading should be >= 1.2x body font size. |
 | `missing-tabular-nums` | warn | type | Set font-variant-numeric: tabular-nums on numeric table cells and changing figures so digits align vertically. |
+| `eyebrow-label` | error | type | Drop the small tracked caps label over the heading. If what it says matters, put it in the heading or in a metadata line the reader uses. |
 | `mono-costume` | warn | type | Reserve monospace for code, tabular figures, and copyable values (IDs, hex, paths), not prose or uppercase labels. |
 | `small-tap-target` | warn | mobile | Make mobile interactive controls at least 44x44px (or expand their hit area). |
 | `concentric-radius` | warn | surfaces | Match concentric radii on tightly inset surfaces (outerRadius = innerRadius + padding + borderWidth). |
@@ -316,7 +355,7 @@ Yes. Utilities like `rounded-full`, `tracking-widest uppercase`, `bg-indigo-500`
 <details>
 <summary><b>Why not ask a model to judge the design?</b></summary>
 
-In testing, LLM judges marked down plain, finished UI as "generic" and fell for polish the rules ban. The linters check what can be checked. Taste is measured separately, with blind picks: see [`taste.md`](playbook/taste.md).
+In testing, LLM judges marked down plain, finished UI as "generic" and fell for polish the rules ban. The linters check what can be checked. Taste comes in through the references you choose and why; asking an agent to list concrete differences against a reference works where asking whether a screen is good didn't. See [`taste.md`](playbook/taste.md).
 
 </details>
 
