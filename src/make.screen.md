@@ -39,6 +39,7 @@ Open your screenshot next to the lead screens' screenshots. In `screens/{{id}}.c
 node {{tells}}/bin/tells.mjs fix screens/{{id}}.html
 node {{tells}}/bin/tells.mjs check screens --strict
 node {{tells}}/bin/tells.mjs render screens/{{id}}.html --strict
+node {{tells}}/bin/tells.mjs click screens/{{id}}.html --strict
 ```
 
-Fix every error and warning on your files. Keep a hit that's right for this screen with `<!-- tells-ok: <rule-id> <reason> -->` on that line. Project-wide exceptions in `.tellsrc` (`allow`) aren't yours to grant: `tells make` sets any you write aside for the person to decide. Fix the hit, or keep one with a `tells-ok` comment and a reason. Don't ask anything, and don't wait for approval.
+`click` presses every control from a fresh store, the way a person would. Fix every error and warning on your files. Keep a hit that's right for this screen with `<!-- tells-ok: <rule-id> <reason> -->` on that line. Project-wide exceptions in `.tellsrc` (`allow`) aren't yours to grant: `tells make` sets any you write aside for the person to decide. Fix the hit, or keep one with a `tells-ok` comment and a reason. Don't ask anything, and don't wait for approval.

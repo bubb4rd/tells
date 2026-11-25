@@ -147,11 +147,13 @@ function audit(dir, state) {
   const cons = tells(["consistent", "screens", ...leads.flatMap((l) => ["--lead", l]), "--json"], dir);
   const chk = tells(["check", ".", "--json"], dir);
   const ren = tells(["render", "screens", "--json", "--widths", "1440,390"], dir);
+  const clk = tells(["click", "screens", "--json"], dir);
   const count = (hits, sev) => (hits ?? []).filter((h) => h.severity === sev).length;
   return {
     consistent: { errors: count(cons.hits, "error"), warnings: count(cons.hits, "warn"), hits: cons.hits ?? [], system: cons.system ?? null, error: cons.error },
     check: { errors: count(chk.hits, "error"), warnings: count(chk.hits, "warn"), hits: chk.hits ?? [], error: chk.error },
     render: { errors: count(ren.hits, "error"), warnings: count(ren.hits, "warn"), hits: ren.hits ?? [], error: ren.error },
+    click: { errors: count(clk.hits, "error"), warnings: count(clk.hits, "warn"), hits: clk.hits ?? [], error: clk.error },
   };
 }
 
@@ -187,7 +189,7 @@ export function revisePrompt(state, notes) {
   });
 }
 
-const line = (a) => `consistent ${a.consistent.errors}E/${a.consistent.warnings}W · check ${a.check.errors}E/${a.check.warnings}W · render ${a.render.errors}E/${a.render.warnings}W`;
+const line = (a) => `consistent ${a.consistent.errors}E/${a.consistent.warnings}W · check ${a.check.errors}E/${a.check.warnings}W · render ${a.render.errors}E/${a.render.warnings}W${a.click ? ` · click ${a.click.errors}E/${a.click.warnings}W` : ""}`;
 
 /** Re-check each variant's lead screens and write CHECKPOINT.md for the person to pick from. */
 function checkpoint(out, state, variants, { say, paint, only = null }) {
@@ -459,6 +461,7 @@ export async function run(argv) {
         ...section("tells consistent", hitLines(before, "consistent")),
         ...section("tells check", hitLines(before, "check")),
         ...section("tells render", hitLines(before, "render")),
+        ...section("tells click", hitLines(before, "click")),
         ...section("Needs from the screen builders", needs, "None."),
       ].join("\n"),
     );

@@ -80,8 +80,9 @@ tells pick   <variants...>     Choose between variants with checks: errors, exce
 tells make   "<brief>"         Build variants in parallel with an agent, fix them, pick one, write a report
 tells measure [files|urls...]  Profile a rendered screen: lead, density, type steps, alignment
 tells consistent [screens...]  Check that a product's screens read as one system
+tells click  [files|dirs...]   Press every control from a fresh start: errors, dead controls, broken links
 tells refs   [add|remove]      Your library of reference screens for make --reference
-tells rules  [check|render|same|consistent] List every rule with its severity and fix
+tells rules  [check|render|same|consistent|click] List every rule with its severity and fix
 
 --json          Machine-readable output
 --strict        Fail on warnings as well as errors
@@ -229,11 +230,13 @@ tells make --resume tells-make/<run> --approve v1
 1. **System.** Each variant (two by default) builds the whole product's system: tokens, every part, one chart language with the marks each screen's shape needs, a shell drawn by one script, a store shared across pages, one world of sample facts for every screen, the contracts for shared state (`CONTRACTS.md`), the rules for later builders (`SYSTEM.md`), and the first two screens. Then it stops, and `CHECKPOINT.md` shows each variant's lead screens.
 2. **You approve one.** `--resume <run> --approve <v>`.
 3. **Screens.** One agent per remaining screen, `--concurrency` at a time, each in its own copy of the approved product. Only the files it owns come back; parts it had to build outside the system are written down for the review.
-4. **Review.** `tells consistent`, `check` and `render` across the screens, then one agent folds the needs into the system, fixes drift and walks the contracts. `REPORT.md` has the before and after.
+4. **Review.** `tells consistent`, `check`, `render` and `click` across the screens, then one agent folds the needs into the system, fixes drift and walks the contracts. `REPORT.md` has the before and after.
 
 A run stopped by a limit resumes with `--resume <run>`: finished screens are kept and failed ones run again.
 
-`tells consistent <screens…>` is the check behind step 4, and it works on its own. Inside one product, sameness is the point, so it renders every screen and flags the one whose typeface, heading sizes, page colour, panel, chart mark, shell or accent differ from the system: what most screens share, or what the screens named with `--lead` share. Routes of a single-page app work as `index.html#/inbox`. On one ten-screen product, it failed the six pages built as separate briefs (two page colours, two panel surfaces and two h1 sizes, though every page shared the typeface) and passed the version built on one shared library.
+`tells consistent <screens…>` is the check behind step 4, and it works on its own. Inside one product, sameness is the point, so it renders every screen and flags the one whose typeface, heading sizes, page colour, panel, shell or accent differ from the system: what most screens share, or what the screens named with `--lead` share. Routes of a single-page app work as `index.html#/inbox`. On one ten-screen product, it failed the six pages built as separate briefs (two page colours, two panel surfaces and two h1 sizes, though every page shared the typeface) and passed the version built on one shared library.
+
+`tells click <screens…>` presses every button, tab and `role=button` on each page, one at a time from a fresh store, and compares the page before and after: its markup, its storage, an open dialog, its address. A control that throws is an error, one that changes nothing is a warning, and so is a relative link to a page that doesn't exist. It also reports a page that throws while loading. Agents can't open a browser, so this is how a run knows its controls work. On the first roaster product it found a "Show log" button that did nothing; on the second, seven timeline blocks marked `role=button` that move only by drag and arrow keys.
 
 ### References
 
@@ -367,6 +370,20 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 | `drift-shell` | error | Every screen sits in the same shell (navigation and layout). |
 | `drift-accent` | warn | This screen brings in a colour the system doesn't use. Use the system's accent, or the system's status colours. |
 <!-- /rules:consistent -->
+
+</details>
+
+<details>
+<summary><b><code>tells click</code></b>: 4 rules from pressing every control</summary>
+
+<!-- rules:click -->
+| Rule | Severity | Fix |
+|---|---|---|
+| `script-error` | error | The page throws while it loads. Fix the script: every control after the error is likely dead. |
+| `click-error` | error | Pressing this control throws. Fix the handler. |
+| `dead-control` | warn | Pressing this changes nothing on the page or in its store. Wire it to an action, or remove it. A thing you drag or move with arrow keys isn't a button: drop role=button. |
+| `broken-link` | error | This link points at a file that doesn't exist. Build the page, or link to one that does. |
+<!-- /rules:click -->
 
 </details>
 

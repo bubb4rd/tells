@@ -8,7 +8,7 @@ The system and its lead screens, `screens/{{lead1}}.html` and `screens/{{lead2}}
 
 ## What you have
 
-- `REVIEW-INPUT.md`: what `tells consistent`, `check` and `render` found across the screens, and every screen's `needs` note (parts its builder had to make outside the system).
+- `REVIEW-INPUT.md`: what `tells consistent`, `check`, `render` and `click` found across the screens, and every screen's `needs` note (parts its builder had to make outside the system).
 - `shots/`: a screenshot of every screen.
 - `SYSTEM.md`, `CONTRACTS.md`, `data/facts.js`, and `{{tells}}/rules/anti-slop.md`.
 
@@ -29,6 +29,7 @@ Write `REVIEW.md`: what you changed and why, as a list, and what you'd still cha
 node {{tells}}/bin/tells.mjs fix .
 node {{tells}}/bin/tells.mjs check . --strict
 node {{tells}}/bin/tells.mjs render screens --strict
+node {{tells}}/bin/tells.mjs click screens --strict
 node {{tells}}/bin/tells.mjs consistent screens --lead screens/{{lead1}}.html --lead screens/{{lead2}}.html --strict
 node {{tells}}/bin/tells.mjs measure screens --shots shots
 ```

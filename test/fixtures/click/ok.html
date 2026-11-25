@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Today</title><script src="system/app.js"></script></head>
+<body><main>
+  <h1>Today</h1>
+  <p id="n"></p>
+  <button id="go" type="button">Start</button>
+  <div role="button" tabindex="0" id="key">Batch 1196</div>
+  <button type="button" aria-pressed="true">All</button>
+  <a href="broken.html">Orders</a>
+</main>
+<script>
+  const show = () => { document.getElementById('n').textContent = App.count; };
+  document.getElementById('go').addEventListener('click', () => { App.bump(); show(); });
+  document.getElementById('key').addEventListener('keydown', (e) => { if (e.key === 'Enter') { App.bump(); show(); } });
+  show();
+</script></body></html>

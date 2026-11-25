@@ -12,8 +12,9 @@ Usage
   tells make   "<brief>"         Build variants in parallel with an agent, fix them, pick one, write a report
   tells measure [files|urls...]  Profile a rendered screen: lead, density, type steps, alignment
   tells consistent [screens...]  Check that a product's screens read as one system
+  tells click  [files|dirs...]   Press every control from a fresh start: errors, dead controls, broken links
   tells refs   [add|remove]      Your library of reference screens for make --reference
-  tells rules  [check|render|same] List every rule with its severity and fix
+  tells rules  [check|render|same|consistent|click] List every rule with its severity and fix
 
 Flags
   --json          Machine-readable output
@@ -40,7 +41,7 @@ Flags
   --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
   --no-render     same, pick, make: skip the headless Chrome checks
   --lead <file>   consistent: the approved screens that define the system (repeatable)
-  --theme <t>     render, same, measure, consistent: light (default) or dark, whatever the machine is set to
+  --theme <t>     render, same, measure, consistent, click: light (default) or dark, whatever the machine is set to
   --widths a,b,c  Viewport widths for render
 
 Exit code is 1 when errors are found (or warnings, with --strict).
@@ -83,6 +84,11 @@ if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") {
     console.error(`tells consistent: ${err.message}`);
     process.exit(2);
   });
+} else if (cmd === "click") {
+  await (await import("../src/click.mjs")).run(rest).catch((err) => {
+    console.error(`tells click: ${err.message}`);
+    process.exit(2);
+  });
 } else if (cmd === "refs") {
   await (await import("../src/references.mjs")).run(rest).catch((err) => {
     console.error(`tells refs: ${err.message}`);
@@ -105,6 +111,10 @@ if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") {
   if (!which || which === "consistent") {
     if (!which) console.log("\nconsistent");
     await (await import("../src/consistent.mjs")).run(["--rules"]);
+  }
+  if (!which || which === "click") {
+    if (!which) console.log("\nclick");
+    await (await import("../src/click.mjs")).run(["--rules"]);
   }
 } else {
   console.error(`tells: unknown command "${cmd}"\n`);

@@ -6,6 +6,7 @@ import { RULES as RENDER } from "../src/render.mjs";
 import { FIXABLE } from "../src/fix.mjs";
 import { RULES as SAME } from "../src/same.mjs";
 import { RULES as CONSISTENT } from "../src/consistent.mjs";
+import { RULES as CLICK } from "../src/click.mjs";
 
 const cell = (s) => s.replace(/\|/g, "\\|");
 const table = (rules, auto) =>
@@ -17,7 +18,7 @@ const table = (rules, auto) =>
 
 const file = new URL("../README.md", import.meta.url);
 let md = fs.readFileSync(file, "utf8");
-for (const [key, rules] of [["check", CHECK], ["render", RENDER], ["same", SAME], ["consistent", CONSISTENT]]) {
+for (const [key, rules] of [["check", CHECK], ["render", RENDER], ["same", SAME], ["consistent", CONSISTENT], ["click", CLICK]]) {
   const re = new RegExp(`(<!-- rules:${key} -->)[\\s\\S]*?(<!-- /rules:${key} -->)`);
   if (!re.test(md)) throw new Error(`README is missing the rules:${key} markers`);
   md = md.replace(re, `$1\n${table(rules, key === "check")}\n$2`);

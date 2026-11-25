@@ -58,9 +58,10 @@ Open the screenshots next to the main reference. In `CRITIQUE.md`, list every pl
 node {{tells}}/bin/tells.mjs fix .
 node {{tells}}/bin/tells.mjs check . --strict
 node {{tells}}/bin/tells.mjs render screens --strict
+node {{tells}}/bin/tells.mjs click screens --strict
 node {{tells}}/bin/tells.mjs consistent screens
 ```
 
-Fix every error and warning. If a hit is right for this product, keep it with `<!-- tells-ok: <rule-id> <reason> -->` on that line; keyboard shortcuts the product really binds go in `.tellsrc` as `{"shortcuts": [...]}`. Project-wide exceptions (`allow`) aren't yours to grant: `tells make` sets any you write aside for the person to decide.
+`click` presses every control from a fresh store, the way a person would; you can't open a browser, so this is how you know a control works. Fix every error and warning. If a hit is right for this product, keep it with `<!-- tells-ok: <rule-id> <reason> -->` on that line; keyboard shortcuts the product really binds go in `.tellsrc` as `{"shortcuts": [...]}`. Project-wide exceptions (`allow`) aren't yours to grant: `tells make` sets any you write aside for the person to decide.
 
 Finish with `NOTES.md` in five lines: what you carried over from the reference, where the palette and theme come from, the one thing that makes this product's system its own, the moment in it that a person would enjoy using, and what still falls short. Don't ask anything, and don't wait for approval.
