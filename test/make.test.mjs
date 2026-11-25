@@ -10,6 +10,16 @@ import { ANGLES, prompts } from "../src/make.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const bin = path.join(here, "..", "bin", "tells.mjs");
 const pick = path.join(here, "fixtures", "pick");
+const rhouse = path.join(here, "fixtures", "same-rendered", "house");
+const chrome = process.env.CHROME_PATH || [
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  "/usr/bin/google-chrome",
+  "/usr/bin/google-chrome-stable",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+].find(existsSync);
+const skipChrome = chrome ? false : "Chrome not found (set CHROME_PATH)";
 const agent = `"${process.execPath}" "${path.join(here, "fixtures", "make", "fake-agent.mjs")}"`;
 const tells = (...args) => spawnSync(process.execPath, [bin, ...args], { encoding: "utf8" });
 
@@ -55,4 +65,13 @@ test("make builds, fixes, picks and reports with no input after the brief", () =
   assert.match(report, /\*\*v1:\*\* 1 rule broken, against 0 \(check:generic-cta\)/); // fix already took the pill and the arrow
   assert.match(report, /\*\*v3:\*\* 1 written exception/);
   assert.doesNotMatch(readFileSync(path.join(out, "v1", "index.html"), "utf8"), /999px|→/);
+});
+
+test("pick reuses render fingerprints to choose off-house tokenless variants", { skip: skipChrome }, () => {
+  const r = tells("pick", path.join(rhouse, "match"), path.join(rhouse, "distinct"), "--house", path.join(rhouse, "a"), "--json");
+  const { winner, ranking } = JSON.parse(r.stdout);
+  assert.match(winner, /distinct$/);
+  assert.equal(ranking[0].houseOf, 8);
+  assert.ok(ranking[1].lands.includes("house-style"), `expected match to land on house-style, got ${JSON.stringify(ranking[1])}`);
+  assert.equal(r.status, 0);
 });

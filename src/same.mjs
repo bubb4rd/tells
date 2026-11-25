@@ -2,24 +2,30 @@
  * tells same: catch a design that lands on a default look or on your own last one.
  *
  * Usage:
- *   tells same [designs...] [--against <path>]... [--house <path>] [--no-siblings] [--json]
+ *   tells same [designs|urls...] [--against <path>]... [--house <path>] [--rendered] [--no-render] [--no-siblings] [--json]
  *
- * A design is a folder (its tokens.css, or the CSS/HTML file declaring the most :root tokens)
- * or a single CSS/HTML file. A folder that holds several designs checks each one against the rest.
+ * A design is a folder (its tokens.css, the CSS/HTML file declaring the most :root tokens, or its
+ * primary HTML page), a single CSS/HTML file, or an http(s) URL. A folder that holds several designs
+ * checks each one against the rest.
  *
- * Three checks, all from tokens and CSS, no browser:
+ * Three checks:
  *   1. The cliché clusters in rules/anti-slop.md §3 (warm paper, acid dark, neo-Swiss, glow void, soft commerce).
  *   2. Your house style: the look most of a design's siblings share, found per axis
- *      (page, ink, hairline, accent, typeface, radius). Siblings are the other designs beside it
- *      plus anything passed with --against.
+ *      (page, ink, hairline, accent, typeface, radius — plus colour-role and layout when rendered).
+ *      Siblings are the other designs beside it plus anything passed with --against.
  *   3. Token copies: 6+ colour tokens with a sibling's name and value (within 6/255).
  *
- * Allow one with `tells-ok: <rule-id> <reason>` in the design's tokens, DESIGN.md or directions.md.
+ * Static :root tokens are read with no browser when present. Pass --rendered, pass a URL, or omit
+ * :root tokens on an HTML page (e.g. Tailwind or inline styles) to fingerprint the rendered page in
+ * headless Chrome. Pass --no-render to disable browser fallback.
+ *
+ * Allow one with `tells-ok: <rule-id> <reason>` in the design's tokens, HTML, DESIGN.md or directions.md.
  * `house-style-ok: <reason>` is accepted for house-style. Exit 1 on any open error.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { display, makePaint, parseArgs } from "./check.mjs";
+import { fingerprintPages } from "./render.mjs";
 
 const ROOT = process.cwd();
 const COPY_LIMIT = 6;
@@ -161,13 +167,46 @@ function filesIn(dir, depth = 0, out = []) {
   return out;
 }
 
-/** The file that carries a design's tokens, and all of its CSS/HTML for effects and fonts. */
+const isUrl = (s) => /^https?:\/\//i.test(String(s || ""));
+const rgbHex = ([r, g, b]) => "#" + [r, g, b].map((c) => Math.max(0, Math.min(255, Math.round(c))).toString(16).padStart(2, "0")).join("");
+
+function urlName(u) {
+  try {
+    const parsed = new URL(u);
+    const p = parsed.pathname.replace(/^\/|\/$/g, "");
+    return p ? `${parsed.host}/${p}` : parsed.host;
+  } catch {
+    return u;
+  }
+}
+
+/** Pick the primary desktop HTML entry point for a design folder, if any. */
+function htmlEntry(dir, files) {
+  const htmls = files.filter((f) => f.endsWith(".html"));
+  if (!htmls.length) return null;
+  for (const preferred of [path.join(dir, "index.html"), path.join(dir, "screens", "main.html")]) {
+    if (fs.existsSync(preferred)) return preferred;
+  }
+  const nonMobile = htmls.filter((f) => !/(?:^|\/)(?:mobile|m\d+-|reference|moodboard)/i.test(path.relative(dir, f)));
+  return nonMobile[0] ?? htmls[0];
+}
+
+/** The file that carries a design's tokens, its primary HTML page, and all CSS/HTML for effects and fonts. */
 function source(target) {
+  if (isUrl(target)) {
+    return { isUrl: true, id: target, url: target, dir: null, name: urlName(target), tokens: null, html: null, files: [] };
+  }
   const stat = fs.statSync(target);
-  if (stat.isFile()) return { dir: path.dirname(target), name: path.basename(target).replace(/\.\w+$/, ""), tokens: target, files: [target] };
+  if (stat.isFile()) {
+    const ext = path.extname(target).toLowerCase();
+    const hasTokens = Object.keys(rootProps(fs.readFileSync(target, "utf8"))).length > 0;
+    const html = ext === ".html" ? target : null;
+    if (!hasTokens && !html) return null;
+    return { isUrl: false, id: target, dir: path.dirname(target), name: path.basename(target).replace(/\.\w+$/, ""), tokens: hasTokens ? target : null, html, files: [target] };
+  }
   const files = filesIn(target).slice(0, 40);
   const tokensCss = path.join(target, "tokens.css");
-  let best = fs.existsSync(tokensCss) ? tokensCss : null;
+  let best = fs.existsSync(tokensCss) && Object.keys(rootProps(fs.readFileSync(tokensCss, "utf8"))).length > 0 ? tokensCss : null;
   if (!best) {
     let n = 0;
     for (const f of files) {
@@ -175,7 +214,8 @@ function source(target) {
       if (k > n) [best, n] = [f, k];
     }
   }
-  return best ? { dir: target, name: path.basename(target), tokens: best, files } : null;
+  const html = htmlEntry(target, files);
+  return best || html ? { isUrl: false, id: target, dir: target, name: path.basename(target), tokens: best, html, files } : null;
 }
 
 function pickToken(props, re) {
@@ -241,7 +281,41 @@ function features(src) {
     glass: /backdrop-filter\s*:(?!\s*none)|\bbackdrop-blur\b/.test(all),
     glow: /blur\(\s*(?:[4-9]\d|\d{3,})px\s*\)|\bblur-(?:2xl|3xl)\b/.test(all),
     italic: /font-style\s*:\s*italic|<em\b|\bitalic\b/.test(all),
+    colourRole: null,
+    layout: null,
+    rendered: false,
     text: all,
+  };
+}
+
+function featuresFromFingerprint(src, fp, staticFeat = null) {
+  const toColor = (rgb, key) => (rgb ? { key, value: rgbHex(rgb), rgb } : null);
+  const page = toColor(fp.page, "rendered page") ?? staticFeat?.page ?? null;
+  const ink = toColor(fp.ink, "rendered ink") ?? staticFeat?.ink ?? null;
+  const line = toColor(fp.line, "rendered line") ?? staticFeat?.line ?? null;
+  const accents = (fp.accents ?? []).map((a) => ({ key: "rendered", h: a.h, s: a.s, l: a.l, area: a.area, name: hueName(a.h) }));
+  const accentHues = hueGroups(accents.map((a) => a.h));
+  const body = fp.bodyFont ?? staticFeat?.body ?? null;
+  const displayFam = fp.displayFont ?? staticFeat?.displayFam ?? body;
+  const radius = fp.radius !== undefined && fp.radius !== null ? fp.radius : (staticFeat?.radius ?? null);
+
+  return {
+    name: src.name,
+    file: src.isUrl ? src.url : display(src.html ?? src.tokens),
+    props: staticFeat?.props ?? {},
+    page, ink, line, accents, accentHues, body, displayFam,
+    bodyClass: typeClass(body),
+    displayClass: typeClass(displayFam),
+    radius,
+    pill: Boolean(fp.pill || staticFeat?.pill),
+    glass: Boolean(fp.glass || staticFeat?.glass),
+    glow: Boolean(fp.glow || staticFeat?.glow),
+    italic: Boolean(fp.italic || staticFeat?.italic),
+    colourRole: fp.colourRole ?? null,
+    layout: fp.layout ?? null,
+    rendered: true,
+    fpOk: fp.ok ?? [],
+    text: staticFeat?.text ?? "",
   };
 }
 
@@ -283,8 +357,12 @@ const AXES = {
   accent: (f) => accentBucket(f),
   typeface: (f) => f.bodyClass,
   radius: (f) => radiusBucket(f.radius),
+  "colour-role": (f) => f.colourRole ?? null,
+  layout: (f) => f.layout ?? null,
 };
+const RENDERED_AXES = new Set(["colour-role", "layout"]);
 const axesOf = (f) => Object.fromEntries(Object.entries(AXES).map(([k, fn]) => [k, fn(f)]));
+const houseThreshold = (n) => (n >= 7 ? 6 : Math.min(HOUSE_FAIL, n));
 
 // ---------------------------------------------------------------------------
 // Clusters (rules/anti-slop.md §3). Each lists its tests; `key` must match for the cluster to count.
@@ -311,11 +389,11 @@ const CLUSTERS = [
   },
   {
     id: "cluster-acid-dark",
-    key: "near-black page",
+    keys: ["near-black page", "acid accent"],
     tests: {
       "near-black page": (f) => dark(f.page),
       "one accent": (f) => f.accentHues.length === 1,
-      "acid accent": (f) => hasAccent(f, (a) => a.s >= 0.7 && ((a.h >= 70 && a.h <= 200) || a.h <= 20)),
+      "acid accent": (f) => hasAccent(f, (a) => a.s >= 0.7 && a.l >= 0.42 && ((a.h >= 70 && a.h <= 200) || a.h <= 20)),
       "hairline borders": (f) => f.line?.rgb && hsl(f.line.rgb).l <= 0.3,
     },
   },
@@ -354,7 +432,8 @@ const CLUSTERS = [
 function clusterHits(f) {
   return CLUSTERS.map((c) => {
     const matched = Object.entries(c.tests).filter(([, t]) => t(f)).map(([name]) => name);
-    return { id: c.id, matched, total: Object.keys(c.tests).length, hit: matched.includes(c.key) && matched.length >= 3 };
+    const req = c.keys ?? [c.key];
+    return { id: c.id, matched, total: Object.keys(c.tests).length, hit: req.every((k) => matched.includes(k)) && matched.length >= 3 };
   });
 }
 
@@ -391,17 +470,24 @@ function copiesOf(f, siblings) {
     .sort((a, b) => b.shared.length - a.shared.length);
 }
 
-function exceptions(src) {
-  const files = new Set([src.tokens, ...["tokens.css", "DESIGN.md", "directions.md"].map((n) => path.join(src.dir, n))]);
+function exceptions(src, fpOk = []) {
   const out = new Map();
-  for (const file of files) {
-    if (!fs.existsSync(file)) continue;
-    const text = fs.readFileSync(file, "utf8");
-    for (const m of text.matchAll(/(?:tells|slop)-ok:\s*([\w-]+)\s+([^\n]*?)\s*(?:\*\/|-->|$)/gm)) {
-      if (RULE_BY_ID.has(m[1]) && m[2].trim()) out.set(m[1], { file: display(file), reason: m[2].trim() });
+  if (!src.isUrl) {
+    const files = new Set([src.tokens, src.html, ...(src.dir ? ["tokens.css", "DESIGN.md", "directions.md"].map((n) => path.join(src.dir, n)) : [])].filter(Boolean));
+    for (const file of files) {
+      if (!fs.existsSync(file)) continue;
+      const text = fs.readFileSync(file, "utf8");
+      for (const m of text.matchAll(/(?:tells|slop)-ok:\s*([\w-]+)\s+([^\n]*?)\s*(?:\*\/|-->|$)/gm)) {
+        if (RULE_BY_ID.has(m[1]) && m[2].trim()) out.set(m[1], { file: display(file), reason: m[2].trim() });
+      }
+      const h = /house-style-ok:\s*([^\n]*?)\s*(?:\*\/|-->|$)/m.exec(text);
+      if (h?.[1].trim() && !out.has("house-style")) out.set("house-style", { file: display(file), reason: h[1].trim() });
     }
-    const h = /house-style-ok:\s*([^\n]*?)\s*(?:\*\/|-->|$)/m.exec(text);
-    if (h?.[1].trim() && !out.has("house-style")) out.set("house-style", { file: display(file), reason: h[1].trim() });
+  }
+  for (const d of fpOk) {
+    if (RULE_BY_ID.has(d.rule) && d.reason && !out.has(d.rule)) {
+      out.set(d.rule, { file: src.isUrl ? src.url : display(src.html ?? src.tokens), reason: d.reason });
+    }
   }
   return out;
 }
@@ -410,23 +496,25 @@ function exceptions(src) {
 // Which designs, and whose history
 
 function designsAt(target) {
+  if (isUrl(target)) return [target];
   const abs = path.resolve(ROOT, target);
   if (!fs.existsSync(abs)) {
     process.stderr.write(`tells same: skipping missing path ${target}\n`);
     return [];
   }
   if (fs.statSync(abs).isFile()) return [abs];
-  // A folder of designs: each subfolder with its own tokens is one.
+  // A folder of designs: each subfolder with its own tokens or HTML page is one.
   const subs = fs.readdirSync(abs, { withFileTypes: true })
     .filter((e) => e.isDirectory() && !e.name.startsWith(".") && !e.name.startsWith("_") && !SKIP_DIRS.has(e.name))
     .map((e) => path.join(abs, e.name))
     .filter((d) => source(d));
   const parts = subs.filter((d) => INTERNAL.test(path.basename(d)));
-  const ownTokens = parts.length > 0 || fs.existsSync(path.join(abs, "tokens.css")) || fs.readdirSync(abs).some((n) => /\.(css|html)$/.test(n) && Object.keys(rootProps(fs.readFileSync(path.join(abs, n), "utf8"))).length >= 4);
+  const ownTokens = parts.length > 0 || fs.existsSync(path.join(abs, "tokens.css")) || fs.existsSync(path.join(abs, "index.html")) || fs.readdirSync(abs).some((n) => /\.(css|html)$/.test(n) && Object.keys(rootProps(fs.readFileSync(path.join(abs, n), "utf8"))).length >= 4);
   return !ownTokens && subs.length >= 2 ? subs : [abs];
 }
 
 function siblingsOf(design) {
+  if (isUrl(design)) return [];
   const parent = path.dirname(design);
   if (fs.statSync(design).isFile()) {
     return fs.readdirSync(parent).filter((n) => /\.(css|html)$/.test(n)).map((n) => path.join(parent, n)).filter((p) => p !== design);
@@ -439,7 +527,7 @@ function siblingsOf(design) {
 
 // ---------------------------------------------------------------------------
 
-export function run(argv = process.argv.slice(2)) {
+export async function run(argv = process.argv.slice(2)) {
   const { positional, flags } = parseArgs(argv);
   if (flags.rules) {
     for (const r of RULES) console.log(`${r.id.padEnd(22)} ${r.severity.padEnd(6)} ${r.fix}`);
@@ -447,17 +535,61 @@ export function run(argv = process.argv.slice(2)) {
   }
   const pinned = typeof flags.house === "string" ? flags.house : null;
   const against = argv.flatMap((a, i) => (a === "--against" && argv[i + 1] ? [argv[i + 1]] : a.startsWith("--against=") ? [a.slice(10)] : []));
+  const precomputedFp = typeof flags.fingerprint === "string" ? JSON.parse(flags.fingerprint) : null;
+  const forceRendered = Boolean(flags.rendered);
+  const noRender = Boolean(flags["no-render"]);
   const targets = positional.filter((p) => !against.includes(p) && p !== pinned);
   const designs = (targets.length ? targets : ["."]).flatMap(designsAt);
+  const extra = against.flatMap((a) => designsAt(a)).filter((p) => isUrl(p) || fs.existsSync(p));
+  const pinnedTarget = pinned ? (isUrl(pinned) ? pinned : path.resolve(ROOT, pinned)) : null;
+
+  // Collect every design (targets + siblings + against + house) so Chrome runs at most once.
+  const srcMap = new Map();
+  const getSrc = (p) => {
+    if (!srcMap.has(p)) {
+      try {
+        srcMap.set(p, source(p));
+      } catch {
+        srcMap.set(p, null);
+      }
+    }
+    return srcMap.get(p);
+  };
+
+  const allPaths = new Set([...designs, ...extra, ...(pinnedTarget ? [pinnedTarget] : [])]);
+  if (!flags["no-siblings"]) {
+    for (const d of designs) for (const s of siblingsOf(d)) allPaths.add(s);
+  }
+
+  const preFpMap = new Map();
+  if (precomputedFp && designs.length === 1) preFpMap.set(designs[0], precomputedFp);
+
+  const toRender = [];
+  for (const p of allPaths) {
+    const src = getSrc(p);
+    if (!src || preFpMap.has(p)) continue;
+    const needsRender = src.isUrl || (forceRendered && src.html) || (!src.tokens && src.html);
+    if (needsRender && !noRender) {
+      toRender.push(src.isUrl ? { id: p, kind: "url", url: src.url, label: src.url } : { id: p, kind: "file", file: src.html, label: display(src.html) });
+    }
+  }
+
+  const renderedFps = toRender.length ? await fingerprintPages(toRender) : new Map();
+  for (const [k, v] of preFpMap) renderedFps.set(k, v);
 
   const cache = new Map();
   const load = (p) => {
     if (!cache.has(p)) {
       let f = null;
       try {
-        const src = source(p);
-        if (src) f = { ...features(src), src, axes: null };
-        if (f) f.axes = axesOf(f);
+        const src = getSrc(p);
+        if (src) {
+          const staticFeat = src.tokens ? features(src) : null;
+          const fp = renderedFps.get(p);
+          if (fp) f = { ...featuresFromFingerprint(src, fp, staticFeat), src, axes: null };
+          else if (staticFeat) f = { ...staticFeat, src, axes: null };
+          if (f) f.axes = axesOf(f);
+        }
       } catch {
         f = null;
       }
@@ -465,22 +597,21 @@ export function run(argv = process.argv.slice(2)) {
     }
     return cache.get(p);
   };
-  const extra = against.flatMap((a) => designsAt(a)).filter((p) => fs.existsSync(p));
 
   const results = [];
   for (const d of designs) {
     const f = load(d);
     if (!f) {
-      results.push({ design: display(d), error: "no tokens found: no tokens.css and no :root custom properties" });
+      results.push({ design: isUrl(d) ? d : display(d), error: "no tokens or HTML page found: add tokens.css, :root custom properties, or an HTML page" });
       continue;
     }
-    const siblings = [...new Set([...(flags["no-siblings"] ? [] : siblingsOf(d)), ...extra])].filter((p) => p !== d).map(load).filter((s) => s && Object.keys(s.props).length);
-    const ref = pinned && load(path.resolve(ROOT, pinned));
-    if (pinned && !ref) throw new Error(`--house ${pinned}: no tokens found`);
+    const siblings = [...new Set([...(flags["no-siblings"] ? [] : siblingsOf(d)), ...extra])].filter((p) => p !== d).map(load).filter(Boolean);
+    const ref = pinnedTarget && load(pinnedTarget);
+    if (pinnedTarget && !ref) throw new Error(`--house ${pinned}: no tokens or HTML page found`);
     const house = ref
-      ? ref.src.tokens === f.src.tokens ? null : Object.fromEntries(Object.entries(ref.axes).filter(([, b]) => b).map(([k, b]) => [k, { bucket: b, share: ref.name }]))
+      ? ref.src.id === f.src.id ? null : Object.fromEntries(Object.entries(ref.axes).filter(([, b]) => b).map(([k, b]) => [k, { bucket: b, share: ref.name }]))
       : houseOf(siblings);
-    const ok = exceptions(f.src);
+    const ok = exceptions(f.src, f.fpOk);
     const hits = [];
 
     const clusters = clusterHits(f);
@@ -488,19 +619,27 @@ export function run(argv = process.argv.slice(2)) {
 
     let houseMatch = null;
     if (house) {
-      const axes = Object.keys(house);
-      const same = axes.filter((a) => f.axes[a] === house[a].bucket);
-      houseMatch = { matched: same, of: axes.length };
-      if (same.length >= Math.min(HOUSE_FAIL, axes.length)) hits.push({ rule: "house-style", detail: `${same.length} of ${axes.length} axes: ${same.join(", ")}` });
+      const axes = Object.keys(house).filter((a) => f.axes[a] !== null);
+      if (axes.length >= 4) {
+        const same = axes.filter((a) => f.axes[a] === house[a].bucket);
+        houseMatch = { matched: same, of: axes.length };
+        if (same.length >= houseThreshold(axes.length)) hits.push({ rule: "house-style", detail: `${same.length} of ${axes.length} axes: ${same.join(", ")}` });
+      }
     }
-    for (const c of copiesOf(f, siblings)) hits.push({ rule: "token-copy", detail: `${c.shared.length} tokens from ${c.sibling}: ${c.shared.slice(0, 4).join(", ")}${c.shared.length > 4 ? ", …" : ""}` });
+    if (Object.keys(f.props).length) {
+      for (const c of copiesOf(f, siblings.filter((s) => Object.keys(s.props).length))) {
+        hits.push({ rule: "token-copy", detail: `${c.shared.length} tokens from ${c.sibling}: ${c.shared.slice(0, 4).join(", ")}${c.shared.length > 4 ? ", …" : ""}` });
+      }
+    }
 
+    const visibleAxes = f.rendered ? f.axes : Object.fromEntries(Object.entries(f.axes).filter(([k]) => !RENDERED_AXES.has(k)));
     results.push({
       design: f.name,
       file: f.file,
-      axes: f.axes,
+      rendered: f.rendered,
+      axes: visibleAxes,
       clusters: clusters.map(({ id, matched, total }) => ({ id, matched, total })),
-      isHouse: Boolean(pinned) && !house,
+      isHouse: Boolean(pinnedTarget) && !house,
       house: house && { ...Object.fromEntries(Object.entries(house).map(([k, v]) => [k, v])), from: siblings.length },
       houseMatch,
       hits: hits.filter((h) => !ok.has(h.rule)).map((h) => ({ ...h, severity: RULE_BY_ID.get(h.rule).severity, fix: RULE_BY_ID.get(h.rule).fix })),
@@ -522,12 +661,14 @@ function print(results, paint) {
       continue;
     }
     const mark = r.hits.length ? paint.red("✗") : r.allowed.length ? paint.yellow("~") : paint.green("✓");
-    out.push(`${mark} ${paint.bold(r.design)}  ${paint.dim(r.file)}`);
+    const mode = r.rendered ? paint.dim(" [rendered]") : "";
+    out.push(`${mark} ${paint.bold(r.design)}  ${paint.dim(r.file)}${mode}`);
+    const pad = r.rendered ? 12 : 9;
     for (const [axis, bucket] of Object.entries(r.axes)) {
       const h = r.house?.[axis];
       const same = h && bucket === h.bucket;
       const note = h ? paint.dim(same ? `  = house (${h.share})` : `  house: ${h.bucket}`) : "";
-      out.push(`    ${(same ? paint.yellow("●") : paint.dim("○"))} ${axis.padEnd(9)} ${bucket ?? paint.dim("not found")}${note}`);
+      out.push(`    ${(same ? paint.yellow("●") : paint.dim("○"))} ${axis.padEnd(pad)} ${bucket ?? paint.dim("not found")}${note}`);
     }
     const near = [...r.clusters].sort((a, b) => b.matched.length - a.matched.length)[0];
     if (near?.matched.length >= 2) out.push(paint.dim(`    nearest cluster: ${near.id} (${near.matched.length}/${near.total}: ${near.matched.join(", ")})`));

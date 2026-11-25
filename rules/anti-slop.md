@@ -36,11 +36,12 @@ An item comes back only if it passes the removal test: *take it out. Does the re
 ## 2. Typography
 
 - **The italic accent word.** One word set in italic serif (often coloured) inside a headline. `check:italic-accent`
-- **Mono as costume.** Monospace for anything other than code, tabular figures, or values people copy. Uppercase tracked mono captions especially. (judgment)
+- **Mono as costume.** Monospace for anything other than code, tabular figures, or values people copy. Uppercase tracked mono captions especially. `render:mono-costume`
 - **Uppercase + letter-spacing on small labels.** Default-off. `check:tracked-caps` `check:uppercase`
 - **Gradient text.** Never. `check:gradient-text`
 - **Default faces.** Inter, Geist, Instrument Sans, Public Sans, Space Grotesk, Instrument Serif, Plus Jakarta Sans, Manrope, DM Sans, Syne, Fraunces, Newsreader, JetBrains Mono, IBM Plex Mono. The list grows: a face that was a fresh choice a year ago becomes the next default once every generator reaches for it. These aren't banned forever, but choosing one requires a reason from the subject *and* naming two alternatives you considered and rejected. `check:default-font`
 - **Size as the only hierarchy.** A giant hero headline that is the whole idea. Hierarchy should also come from position, weight, spacing and content order. (judgment; a flat hierarchy is `render:flat-type-hierarchy`)
+- **Unaligned figures.** Numeric table columns and changing values should use `font-variant-numeric: tabular-nums`. `render:missing-tabular-nums`
 
 ## 3. Colour: the cliché clusters
 
@@ -59,7 +60,7 @@ What a cluster bans is the whole default package, not its parts. Clusters 1 and 
 
 Cluster 6 isn't wrong for the subject where it was first tested and won. It's wrong as the starting point for every other subject. If a new system shares most of its tokens with a sibling, write down why this subject earns the look, or derive a new one. `same:house-style` `same:token-copy`
 
-Also out: purple to blue gradients, and an accent rainbow (a new colour per badge with no shared meaning). `check:purple-default` `check:gradient-count`; the rainbow is judgment.
+Also out: purple to blue gradients, an accent rainbow (a new colour per badge with no shared meaning), and a dark sidebar split against a light canvas. `check:purple-default` `check:gradient-count` `render:accent-rainbow` `render:split-surface`
 
 **Every colour in the palette needs an origin**: where it comes from in the subject (a material, a place, a document, a real product). "It feels premium" isn't an origin. (judgment)
 
@@ -69,9 +70,9 @@ Text must stay readable on its background: 4.5:1 for normal text, 3:1 for large 
 
 - **Pills.** Pill buttons, pill badges, pill tags, pill chip rows, floating capsule navbars. Use the system's own radius. `check:pill-radius`
 - **Badges.** NEW / BETA / LIVE / v2.0 above the hero; coloured status dots on things that have no status. `check:status-theatre`
-- **The icon-on-top feature grid.** 3–4 cards, an icon in a tinted square, title, two lines. (judgment)
-- **The stat strip.** A big number + a small uppercase label, in a row of three or four. (judgment)
-- **Boxes everywhere.** Cards inside cards, borders around every block, a coloured left-border callout. `check:side-tab`; nesting is judgment.
+- **The icon-on-top feature grid.** 3–4 cards, an icon in a tinted square, title, two lines. `render:icon-feature-grid`
+- **The stat strip.** A big number + a small uppercase label, in a row of three or four. `render:stat-strip`
+- **Boxes everywhere.** Cards inside cards, borders around every block, a coloured left-border callout. `check:side-tab` `render:nested-cards`
 - **Glass.** `backdrop-filter`, 10%-white borders, specular top highlights, except over real content (menus, overlays). `check:glass`
 - **Emoji or sparkle icons.** Mixed icon sets. `check:emoji-sparkle`
 - **Specimen tropes as the showcase.** Swatch grids with hex + contrast badges, type-ramp tables and "click to copy" plates. These belong in a plain reference sheet, not the main show. (judgment)
@@ -84,9 +85,10 @@ Text must stay readable on its background: 4.5:1 for normal text, 3:1 for large 
 
 ## 5. Layout
 
-- **The template hero stack.** Badge or eyebrow, then headline, subline, two buttons and a generic mock. The slop is the stack, not centring: a centred hero works when it has one button, no badge, and the product or one real image below. (judgment)
+- **The template hero stack.** Badge or eyebrow, then headline, subline, two buttons and a generic mock. The slop is the stack, not centring: a centred hero works when it has one button, no badge, and the product or one real image below. `render:template-hero-stack`
 - **The split hero.** Headline left, framed "plate" or device right. (judgment)
 - **Bento by default.** Same layout repeated for every section; numbered sections. `check:numbered-section`; repetition is judgment.
+- **Word-only screens.** Stripping decoration without a visual layer (charts, data drawings, icons, imagery) leaves structure without hierarchy. `render:word-only-screen`
 - **Marketing page as the proof.** A design system proves itself on working screens, not on a landing page about itself. (judgment)
 - **Measurable layout faults.** Horizontal scroll at any width `render:horizontal-overflow`, clipped text `render:clipped-text`, cramped container padding `render:cramped-padding`, a top nav that wraps or grows past 80px `render:tall-top-nav`, prose wider than 80ch `render:long-measure`, mismatched nested radii `render:concentric-radius`.
 

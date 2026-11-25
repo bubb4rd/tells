@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>icon-feature-grid</title>
+<style>
+  body { margin: 0; padding: 32px; font: 16px/1.5 Georgia, serif; background: #fff; color: #111; }
+  h1 { font-size: 32px; margin: 0 0 24px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 960px; }
+  .card { padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; }
+  .icon { width: 40px; height: 40px; background: #eef2ff; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; }
+  h2 { font-size: 18px; margin: 0 0 8px; }
+  p { margin: 0; color: #444; }
+</style>
+</head>
+<body>
+  <h1>Capabilities</h1>
+  <div class="grid">
+    <div class="card"><div class="icon"><svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="#1d4ed8"/></svg></div><h2>Fast sync</h2><p>Keep inventory updated across every counter in seconds.</p></div>
+    <div class="card"><div class="icon"><svg width="20" height="20" viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" fill="#1d4ed8"/></svg></div><h2>Clear logs</h2><p>Review every repair note and mechanic sign-off in one view.</p></div>
+    <div class="card"><div class="icon"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M4 10h12" stroke="#1d4ed8" stroke-width="2"/></svg></div><h2>Simple billing</h2><p>Send itemized invoices as soon as the bike leaves the stand.</p></div>
+  </div>
+</body>
+</html>

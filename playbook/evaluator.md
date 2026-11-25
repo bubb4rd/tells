@@ -7,7 +7,7 @@ You check design screenshots for craft problems that can be verified. You do **n
 - The live HTML, if available, so you can check states and measurements.
 
 ## What to check
-Run `tells check <path>` and `tells render <path>` first, so the deterministic checks (template tells, contrast, overflow, tap targets, text size, clipping, measure, heading hierarchy, concentric radii, broken or duplicate images, nav height, focus outlines) are measured rather than eyeballed. Then, for each remaining item, report a defect only with evidence: where it is and what you measured or saw at 2× zoom.
+Run `tells check <path>` and `tells render <path>` first, so the deterministic checks (template tells, contrast, overflow, tap targets, text size, clipping, measure, heading hierarchy, concentric radii, split surfaces, nested cards, icon feature grids, stat strips, template hero stacks, tabular numerals, mono costume, accent rainbow, word-only screens, broken or duplicate images, nav height, focus outlines) are measured rather than eyeballed. Then, for each remaining item, report a defect only with evidence: where it is and what you measured or saw at 2× zoom.
 
 1. **Numbers:** tabular numerals in tables and changing values; values that add up (totals, percentages, splits); consistent formats for currency, dates and units.
 2. **Alignment and spacing:** baselines, optical alignment of icons with text, consistent gaps inside a component family, concentric radii (inner radius = outer radius − padding), no cramped container padding (`< 8px`).

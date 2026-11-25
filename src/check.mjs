@@ -65,6 +65,20 @@ const RULES = [
 ];
 const RULE_BY_ID = new Map(RULES.map((r) => [r.id, r]));
 
+// Rule IDs owned by `tells render` and `tells same` so `tells-ok` for them isn't flagged as ok-unknown.
+const OTHER_TOOL_RULES = new Set([
+  // render
+  "horizontal-overflow", "clipped-text", "cramped-padding", "tall-top-nav",
+  "icon-feature-grid", "stat-strip", "template-hero-stack", "word-only-screen",
+  "low-contrast", "accent-rainbow", "tiny-text", "long-measure",
+  "flat-type-hierarchy", "missing-tabular-nums", "mono-costume", "small-tap-target",
+  "concentric-radius", "split-surface", "nested-cards", "broken-image",
+  "duplicate-avatar", "skipped-heading", "missing-focus-ring",
+  // same
+  "cluster-warm-paper", "cluster-acid-dark", "cluster-neo-swiss", "cluster-glow-void",
+  "cluster-soft-commerce", "house-style", "token-copy",
+]);
+
 const DEFAULT_FONTS = [
   "Plus Jakarta Sans", "Instrument Serif", "IBM Plex Mono", "JetBrains Mono", "Space Grotesk",
   "Instrument Sans", "Public Sans", "Geist Mono", "Newsreader", "Fraunces", "DM Sans", "Manrope", "Geist", "Inter", "Syne",
@@ -771,7 +785,7 @@ function auditFile(file, onlyRule, source = null) {
         const r = RULE_BY_ID.get(id);
         hits.push({ file: rel, line: s.line + 1, rule: id, severity: r.severity, category: r.category, snippet: `(${message}) ${snippetFrom(rawLines[s.line], rawLines[s.line].search(/(?:tells|slop)-ok/))}`, fix: r.fix });
       };
-      if (!s.rule || !RULE_BY_ID.has(s.rule)) meta("ok-unknown", `unknown rule "${s.rule}"`);
+      if (!s.rule || (!RULE_BY_ID.has(s.rule) && !OTHER_TOOL_RULES.has(s.rule))) meta("ok-unknown", `unknown rule "${s.rule}"`);
       else if (!s.reason) meta("ok-reason", `no reason for ${s.rule}`);
     }
   }
@@ -916,4 +930,4 @@ export function run(argv = process.argv.slice(2)) {
   if (hits.some((h) => h.severity === "error" || (flags.strict && h.severity === "warn"))) process.exitCode = 1;
 }
 
-export { RULES, RULE_BY_ID, auditFile, walk, display, printReport, makePaint, summarize, parseArgs };
+export { RULES, RULE_BY_ID, OTHER_TOOL_RULES, auditFile, walk, display, printReport, makePaint, summarize, parseArgs };

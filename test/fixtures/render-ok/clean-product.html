@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>clean-product</title>
+<style>
+  body { margin: 0; font: 16px/1.5 "Helvetica Neue", Arial, sans-serif; background: #f8f9fa; color: #111; }
+  .shell { display: flex; min-height: 900px; }
+  aside { width: 220px; background: #f1f3f5; border-right: 1px solid #dee2e6; padding: 24px 16px; box-sizing: border-box; }
+  main { flex: 1; padding: 32px; max-width: 900px; }
+  h1 { font-size: 32px; margin: 0 0 8px; }
+  h2 { font-size: 18px; margin: 24px 0 12px; }
+  .panel { background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e9ecef; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  code { font-family: "Courier New", monospace; font-size: 14px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; background: #e9ecef; color: #212529; font-size: 13px; }
+  .cta { display: inline-block; margin-top: 16px; padding: 12px 18px; background: #b4441c; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600; }
+  @media (max-width: 720px) { .shell { display: block; } aside { width: auto; border-right: 0; border-bottom: 1px solid #dee2e6; } }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <p><strong>Northside Cycle</strong></p>
+      <p>Repair queue</p>
+      <p>Parts bin</p>
+    </aside>
+    <main>
+      <h1>Tuesday repair queue</h1>
+      <p>Twelve bikes checked in. Next open stand is at 14:30 with Priya Raman.</p>
+      <div class="panel">
+        <svg width="240" height="44" viewBox="0 0 240 44" role="img" aria-label="Daily completions">
+          <rect x="0" y="18" width="28" height="26" fill="#b4441c"/>
+          <rect x="40" y="10" width="28" height="34" fill="#b4441c"/>
+          <rect x="80" y="6" width="28" height="38" fill="#b4441c"/>
+          <rect x="120" y="14" width="28" height="30" fill="#b4441c"/>
+        </svg>
+        <h2>Open work orders</h2>
+        <table>
+          <thead><tr><th>Ticket</th><th>Rider</th><th>Job</th><th>Estimate</th></tr></thead>
+          <tbody>
+            <tr><td><code>JOB-412</code></td><td>Priya Raman</td><td><span class="tag">Wheel true</span></td><td class="num">$45.00</td></tr>
+            <tr><td><code>JOB-413</code></td><td>Lukas Brandt</td><td><span class="tag">Brake bleed</span></td><td class="num">$62.50</td></tr>
+            <tr><td><code>JOB-414</code></td><td>Hana Sato</td><td><span class="tag">Bottom bracket</span></td><td class="num">$118.00</td></tr>
+          </tbody>
+        </table>
+        <a class="cta" href="#add">Log drop-off</a>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>stat-strip</title>
+<style>
+  body { margin: 0; padding: 32px; font: 16px/1.5 Georgia, serif; background: #fff; color: #111; }
+  h1 { font-size: 32px; margin: 0 0 24px; }
+  .strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; max-width: 960px; }
+  .stat { padding: 16px; border-top: 1px solid #d4d4d8; }
+  .num { font-size: 34px; font-weight: 700; line-height: 1.1; }
+  .lbl { margin-top: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #52525b; }
+</style>
+</head>
+<body>
+  <h1>Overview</h1>
+  <div class="strip">
+    <div class="stat"><div class="num">99.9%</div><div class="lbl">Uptime</div></div>
+    <div class="stat"><div class="num">14,200</div><div class="lbl">Repairs done</div></div>
+    <div class="stat"><div class="num">42m</div><div class="lbl">Avg wait</div></div>
+    <div class="stat"><div class="num">18</div><div class="lbl">Mechanics</div></div>
+  </div>
+</body>
+</html>

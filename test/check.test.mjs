@@ -4,6 +4,9 @@ import { spawnSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { OTHER_TOOL_RULES } from "../src/check.mjs";
+import { RULES as RENDER_RULES } from "../src/render.mjs";
+import { RULES as SAME_RULES } from "../src/same.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const bin = path.join(here, "..", "bin", "tells.mjs");
@@ -50,4 +53,14 @@ test("tells-ok and slop-ok both allow a hit with a reason", () => {
   assert.deepEqual(out.hits, []);
   assert.deepEqual(out.allowed.map((a) => a.rule).sort(), ["dot-triplet", "glass"]);
   assert.equal(code, 0);
+});
+
+test("tells-ok for render and same rules is accepted by check, and rule lists stay in sync", () => {
+  const expected = [...RENDER_RULES, ...SAME_RULES].map((r) => r.id).sort();
+  assert.deepEqual([...OTHER_TOOL_RULES].sort(), expected);
+  const { out: sameFile } = check(path.join(fixtures, "same", "copy", "two", "tokens.css"));
+  assert.ok(!sameFile.hits.some((h) => h.rule === "ok-unknown"), `unexpected ok-unknown: ${JSON.stringify(sameFile.hits)}`);
+  const { out: renderFile } = check(path.join(fixtures, "render-ok", "suppressed.html"));
+  assert.ok(!renderFile.hits.some((h) => h.rule === "ok-unknown"), `unexpected ok-unknown: ${JSON.stringify(renderFile.hits)}`);
+  assert.ok(renderFile.hits.some((h) => h.rule === "ok-reason"), "bare tells-ok on render rule should still flag ok-reason");
 });

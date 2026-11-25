@@ -48,6 +48,8 @@ export function measure(variant, { render = true, against = [], house = null, la
   const pages = htmlIn(variant);
   const rend = render && pages.length ? tells(["render", ...pages]) : null;
   const sameArgs = ["same", variant, "--no-siblings", ...against.flatMap((a) => ["--against", a]), ...(house ? ["--house", house] : [])];
+  if (!render) sameArgs.push("--no-render");
+  else if (rend?.fingerprints?.[0]) sameArgs.push(`--fingerprint=${JSON.stringify(rend.fingerprints[0])}`);
   const same = tells(sameArgs).designs?.[0] ?? null;
 
   const hits = [
@@ -61,7 +63,7 @@ export function measure(variant, { render = true, against = [], house = null, la
     label: label ?? display(variant),
     errors: hits.filter((h) => h.severity === "error"),
     warnings: hits.filter((h) => h.severity === "warn"),
-    exceptions: (check.allowed?.length ?? 0) + (same?.allowed?.length ?? 0),
+    exceptions: (check.allowed?.length ?? 0) + (rend?.allowed?.length ?? 0) + (same?.allowed?.length ?? 0),
     lands: sameRules.filter((r) => r.startsWith("cluster-") || r === "house-style"),
     houseAxes: same?.houseMatch ? same.houseMatch.matched.length : 0,
     houseOf: same?.houseMatch ? same.houseMatch.of : 0,

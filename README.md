@@ -71,7 +71,7 @@ tells make "a shift handover screen for night nurses" # brief in, one checked sc
 tells check  [paths...]        Static audit of HTML, CSS, JSX, TSX and MDX source
 tells fix    [paths...]        Rewrite the hits that have one right answer, then report the rest
 tells render [files|dirs|urls] Rendered audit in headless Chrome at 1440, 960 and 390px
-tells same   [designs...]      Catch a design that lands on a cliché cluster, your house style or a sibling
+tells same   [designs|urls...] Catch a design that lands on a cliché cluster, your house style or a sibling
 tells pick   <variants...>     Choose between variants with checks: errors, exceptions, sameness, warnings
 tells make   "<brief>"         Build variants in parallel with an agent, fix them, pick one, write a report
 tells rules  [check|render|same] List every rule with its severity and fix
@@ -83,9 +83,10 @@ tells rules  [check|render|same] List every rule with its severity and fix
 --radius <css>  fix: radius that replaces pills (default 6px)
 --house <path>  same, pick, make: compare with this design instead of the majority
 --against <p>   same, pick, make: past designs to compare with (repeatable)
+--rendered      same: fingerprint rendered styles, colour role and layout in headless Chrome
 --variants <n>  make: how many to build (default 4)
 --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
---no-render     pick, make: skip the headless Chrome checks
+--no-render     same, pick, make: skip the headless Chrome checks
 --widths a,b,c  Viewport widths for render
 ```
 
@@ -123,7 +124,7 @@ Some tells are right for a subject. Allow one hit with a comment on the same lin
 .avatar { border-radius: 999px; } /* tells-ok: pill-radius avatars are circles */
 ```
 
-A `tells-ok` with no reason, or with a rule that doesn't exist, is itself an error. `slop-ok:` works as an alias.
+A `tells-ok` with no reason, or with a rule that doesn't exist, is itself an error. `slop-ok:` works as an alias. For rendered checks in frameworks that strip HTML comments, `data-tells-ok="<rule-id> <reason>"` on the element or an ancestor works the same way.
 
 ## Fix
 
@@ -142,10 +143,10 @@ Copy, colour, type and layout need a decision about the subject. Those stay in t
 
 ## Same
 
-A screen can pass every rule and still be the look you shipped last time. Left alone, a generator drifts back to whatever won before, and banning one look only moves it to the next default. `tells same` reads a design's tokens (its `tokens.css`, or the CSS or HTML that declares the most `:root` properties) and checks three things:
+A screen can pass every rule and still be the look you shipped last time. Left alone, a generator drifts back to whatever won before, and banning one look only moves it to the next default. `tells same` reads a design's `:root` tokens when present—or fingerprints the rendered page in headless Chrome when passed `--rendered`, a live URL, or a Tailwind/inline-style HTML page without `:root` tokens—and checks three things:
 
 - **The cliché clusters.** Warm paper with a book serif, near-black with one acid accent, neo-Swiss, a glowing dark void, and soft commerce. These are clusters 1 to 5 in [`rules/anti-slop.md`](rules/anti-slop.md#3-colour-the-cliché-clusters).
-- **Your house style.** On six axes (page, ink, hairline, accent, typeface and radius), it finds the bucket most of a design's siblings share, and flags a design that matches five of them. Siblings are the other designs in the same folder, plus any you pass with `--against`. `--house <design>` compares with one design instead, such as the one that won last time.
+- **Your house style.** On six static axes (page, ink, hairline, accent, typeface and radius)—plus two rendered axes (**colour role**: `monochrome`, `accent-dots`, `tinted-surfaces` or `structural-field`; and **layout**: `canvas-overlay`, `sidebar-main`, `split-pane`, `centered-hero`, `card-grid`, `top-nav-workspace` or `single-column`)—it finds the bucket most of a design's siblings share, and flags a design that matches the house across them (5 of 6 static, 6 of 8 rendered). Siblings are the other designs in the same folder, plus any you pass with `--against`. `--house <design>` compares with one design instead, such as the one that won last time.
 - **Token copies.** Six or more colour tokens with a sibling's name and value.
 
 ```
@@ -220,7 +221,7 @@ tells make "a shift handover screen for night nurses on a hospital ward" --again
 </details>
 
 <details>
-<summary><b><code>tells render</code></b>: 14 rules on the rendered page</summary>
+<summary><b><code>tells render</code></b>: 23 rules on the rendered page</summary>
 
 <!-- rules:render -->
 | Rule | Severity | Category | Fix |
@@ -229,12 +230,21 @@ tells make "a shift handover screen for night nurses on a hospital ward" --again
 | `clipped-text` | warn | layout | Prevent text clipping or descender cut-off inside overflow:hidden containers (check wrapping, width, and line-height). |
 | `cramped-padding` | warn | layout | Give bordered/surface containers at least 8px padding on non-zero sides. |
 | `tall-top-nav` | warn | layout | Keep desktop top navigation on a single line and <= 80px tall. |
+| `icon-feature-grid` | error | layout | Replace the 3–4 card icon-on-top feature grid with real product proof, a table, or copy that fits the subject. |
+| `stat-strip` | warn | layout | Replace the row of identical big-number + tiny-label stat blocks with one focal number and the context or chart that explains it. |
+| `template-hero-stack` | error | layout | Break up the template hero stack (badge + centred headline + subline + two buttons). Lead with the product or one direct action, and drop the badge. |
+| `word-only-screen` | warn | layout | Add a visual layer that carries real information (a chart, data drawing, icon set on actions, or real imagery); word-only screens lack hierarchy. |
 | `low-contrast` | error | color | Meet WCAG AA contrast: >= 4.5:1 for normal text, >= 3:1 for large text (>= 24px or >= 18.66px bold). |
+| `accent-rainbow` | warn | color | Avoid an accent rainbow across badges and tags. Use one accent meaning per colour, or neutral surfaces with typography. |
 | `tiny-text` | warn | type | Keep readable text >= 12px at mobile widths (and never < 10px anywhere). |
 | `long-measure` | warn | type | Constrain multi-line prose blocks to <= 80ch for readability. |
 | `flat-type-hierarchy` | warn | type | Establish clear type hierarchy: largest heading should be >= 1.2x body font size. |
+| `missing-tabular-nums` | warn | type | Set font-variant-numeric: tabular-nums on numeric table cells and changing figures so digits align vertically. |
+| `mono-costume` | warn | type | Reserve monospace for code, tabular figures, and copyable values (IDs, hex, paths), not prose or uppercase labels. |
 | `small-tap-target` | warn | mobile | Make mobile interactive controls at least 44x44px (or expand their hit area). |
 | `concentric-radius` | warn | surfaces | Match concentric radii on tightly inset surfaces (outerRadius = innerRadius + padding + borderWidth). |
+| `split-surface` | error | surfaces | Keep primary navigation and canvas on cohesive surfaces; avoid pairing a dark sidebar with a light page. |
+| `nested-cards` | error | surfaces | Avoid cards inside cards. Use spacing, typography or a single surface level instead of nested boxes. |
 | `broken-image` | error | media | Fix broken image asset (naturalWidth === 0). |
 | `duplicate-avatar` | error | media | Never reuse the same portrait/avatar image for two different people or duplicate the signed-in user avatar. |
 | `skipped-heading` | warn | a11y | Do not skip heading levels (e.g. h1 -> h3); step down sequentially. |

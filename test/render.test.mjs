@@ -49,3 +49,23 @@ test("contrast is measured after entrance animations settle", { skip }, () => {
   const { out } = render(path.join(here, "fixtures", "render-settled", "fade-in.html"));
   assert.ok(!out.hits.some((h) => h.rule === "low-contrast"), out.hits.map((h) => h.rule).join(", "));
 });
+
+test("tells-ok comments and data-tells-ok suppress render hits only with a reason", { skip }, () => {
+  const { out } = render(path.join(here, "fixtures", "render-ok", "suppressed.html"));
+  assert.ok(!out.hits.some((h) => h.rule === "split-surface"), "split-surface should be suppressed by comment");
+  assert.ok(!out.hits.some((h) => h.rule === "nested-cards"), "nested-cards should be suppressed by data-tells-ok");
+  assert.ok(out.hits.some((h) => h.rule === "mono-costume"), "bare tells-ok without a reason must not suppress");
+  assert.deepEqual(out.allowed.map((a) => a.rule).sort(), ["nested-cards", "split-surface"]);
+  assert.equal(out.summary.allowed, 2);
+});
+
+test("realistic product screen stays clean across all render rules", { skip }, () => {
+  const { code, out } = render(path.join(here, "fixtures", "render-ok", "clean-product.html"));
+  assert.deepEqual(out.hits, []);
+  assert.equal(code, 0);
+  const fp = out.fingerprints?.[0];
+  assert.ok(fp, "render --json should include a rendered fingerprint");
+  assert.equal(fp.layout, "sidebar-main");
+  assert.equal(fp.colourRole, "accent-dots");
+  assert.equal(fp.radius, 8);
+});
