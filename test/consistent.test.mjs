@@ -6,12 +6,19 @@ import { parseScreens, owned, systemPrompts, screenPrompt } from "../src/product
 const base = { families: ["apfel"], h1: 30, h2: 16, page: [231, 229, 223], panel: { radius: 4, bg: "#f3f2ee", border: "#d2cfc6" }, marks: ["dots"], layout: "sidebar-main", accents: [5] };
 const screen = (label, over = {}) => ({ label, traits: { ...base, ...over } });
 
-test("screens that share the system pass", () => {
-  const { hits } = compare([screen("a"), screen("b"), screen("c")]);
+test("screens that share the system pass, each drawn in its own shape", () => {
+  const { hits } = compare([screen("a"), screen("b", { marks: ["lines", "dots"] }), screen("c", { marks: ["bars"] })]);
   assert.deepEqual(hits, []);
 });
 
-test("a stitched screen drifts on page, panel, font, chart and shell", () => {
+test("a product that draws every screen with the same one mark is one-shape; leads are spared", () => {
+  const { hits } = compare([screen("lead1"), screen("lead2"), screen("x"), screen("y")], ["lead1", "lead2"]);
+  assert.deepEqual(hits.map((h) => `${h.target} ${h.rule}`), ["x one-shape", "y one-shape"]);
+  assert.equal(hits[0].severity, "warn");
+  assert.deepEqual(compare([screen("a"), screen("b")]).hits, []);
+});
+
+test("a stitched screen drifts on page, panel, font and shell; a different mark is not drift", () => {
   const odd = screen("odd", {
     families: ["apfel", "inter"],
     page: [236, 235, 230],
@@ -21,7 +28,7 @@ test("a stitched screen drifts on page, panel, font, chart and shell", () => {
     h1: 44,
   });
   const { hits } = compare([screen("a"), screen("b"), odd]);
-  assert.deepEqual(hits.filter((h) => h.target === "odd").map((h) => h.rule).sort(), ["drift-chart", "drift-heading", "drift-page", "drift-panel", "drift-shell", "drift-typeface"]);
+  assert.deepEqual(hits.filter((h) => h.target === "odd").map((h) => h.rule).sort(), ["drift-heading", "drift-page", "drift-panel", "drift-shell", "drift-typeface"]);
   assert.ok(!hits.some((h) => h.target !== "odd"));
 });
 

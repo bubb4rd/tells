@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { COMMANDS, UsageError, checkInputs, commandHelp, help, parseCommandLine, suggestCommand } from "../src/cli.mjs";
 
 const MODULES = { refs: "references" };
-const RULE_SETS = ["check", "render", "same", "consistent"];
+const RULE_SETS = ["check", "render", "same", "consistent", "click"];
 
 const [cmd, ...rest] = process.argv.slice(2);
 

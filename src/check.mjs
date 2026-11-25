@@ -89,10 +89,10 @@ const RULES = [
 ];
 const RULE_BY_ID = new Map(RULES.map((r) => [r.id, r]));
 
-// Rule IDs owned by `tells render` and `tells same` so `tells-ok` for them isn't flagged as ok-unknown.
+// Rule IDs owned by render, same, consistent and click, so `tells-ok` for them isn't flagged as ok-unknown.
 const OTHER_TOOL_RULES = new Set([
   // render
-  "horizontal-overflow", "clipped-text", "cramped-padding", "tall-top-nav",
+  "horizontal-overflow", "clipped-text", "cramped-padding", "off-centre-label", "tall-top-nav",
   "icon-feature-grid", "stat-strip", "template-hero-stack", "word-only-screen",
   "low-contrast", "accent-rainbow", "tiny-text", "long-measure",
   "flat-type-hierarchy", "missing-tabular-nums", "mono-costume", "eyebrow-label", "small-tap-target",
@@ -102,7 +102,9 @@ const OTHER_TOOL_RULES = new Set([
   "cluster-warm-paper", "cluster-acid-dark", "cluster-neo-swiss", "cluster-glow-void",
   "cluster-soft-commerce", "house-style", "token-copy",
   // consistent
-  "drift-typeface", "drift-heading", "drift-page", "drift-panel", "drift-chart", "drift-shell", "drift-accent",
+  "drift-typeface", "drift-heading", "drift-page", "drift-panel", "one-shape", "drift-shell", "drift-accent",
+  // click
+  "script-error", "click-error", "dead-control", "broken-link",
 ]);
 
 const DEFAULT_FONTS = [

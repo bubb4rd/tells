@@ -27,6 +27,7 @@ Open the new screenshots. In `REVISION.md`, take each note in turn: what you cha
 node {{tells}}/bin/tells.mjs fix .
 node {{tells}}/bin/tells.mjs check . --strict
 node {{tells}}/bin/tells.mjs render screens --strict
+node {{tells}}/bin/tells.mjs click screens --strict
 node {{tells}}/bin/tells.mjs consistent screens
 ```
 

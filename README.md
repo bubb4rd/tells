@@ -80,11 +80,12 @@ tells pick       <variants...>      Choose between variants with checks: errors,
 tells make       "<brief>"          Build variants in parallel with an agent, fix them, pick one, write a report
 tells measure    [files|urls...]    Profile a rendered screen: lead, density, type steps, alignment
 tells consistent [screens...]       Check that a product's screens read as one system
+tells click      [files|dirs...]    Press every control from a fresh start: errors, dead controls, broken links
 tells refs       [list|add|remove]  Your library of reference screens for make --reference
-tells rules      [set]              List every rule with its fix; sets: check, render, same, consistent
+tells rules      [set]              List every rule with its fix; sets: check, render, same, consistent, click
 
 --json          Machine-readable output
---strict        check, fix, render, consistent: fail on warnings as well as errors
+--strict        check, fix, render, consistent, click: fail on warnings as well as errors
 --rule <id>     check, fix, render: run one rule
 --dry-run       fix: show what would change, write nothing
 --radius <css>  fix: radius that replaces pills (default 6px)
@@ -113,13 +114,13 @@ tells rules      [set]              List every rule with its fix; sets: check, r
 --full          measure, refs add: screenshot the whole page, up to 4,000px
 --no-render     same, pick, make: skip the headless Chrome checks
 --lead <file>   consistent: the approved screens that define the system (repeatable)
---theme <t>     render, same, measure, consistent: light (default) or dark, whatever the machine is set to
+--theme <t>     render, same, measure, consistent, click: light (default) or dark, whatever the machine is set to
 --widths a,b,c  render: viewport widths in px (default 1440,960,390)
 ```
 
 `tells <command> --help` says what a command reads and gives an example.
 
-`check`, `fix`, `render`, `same`, `pick` and `consistent` exit 1 when errors are left (or warnings, with `--strict`), so they work in CI as they are. Every command exits 2 when it can't run: an unknown flag, a path that doesn't exist, a folder with nothing to check, a page that won't load or answers 4xx or 5xx. A typo in CI fails the build instead of passing on nothing. Files with `mobile` in their path render at 390px only, unless you pass `--widths`.
+`check`, `fix`, `render`, `same`, `pick`, `consistent` and `click` exit 1 when errors are left (or warnings, with `--strict`), so they work in CI as they are. Every command exits 2 when it can't run: an unknown flag, a path that doesn't exist, a folder with nothing to check, a page that won't load or answers 4xx or 5xx. A typo in CI fails the build instead of passing on nothing. Files with `mobile` in their path render at 390px only, unless you pass `--widths`.
 
 tells checks code and rendered pages, not screenshots. To audit what a screenshot shows, point `render` at the page or its URL. A screenshot is a reference: `make --reference shot.png` studies it, `make --current shot.png` redesigns the page it shows, and `refs add shot.png` keeps it in your library.
 
@@ -236,14 +237,16 @@ tells make "a coffee roaster's back office" --product --reference plausible \
 tells make --resume tells-make/<run> --approve v1
 ```
 
-1. **System.** Each variant (two by default) builds the whole product's system: tokens, every part, one chart style, a shell drawn by one script, a store shared across pages, one world of sample facts for every screen, the contracts for shared state (`CONTRACTS.md`), the rules for later builders (`SYSTEM.md`), and the first two screens. Then it stops, and `CHECKPOINT.md` shows each variant's lead screens.
+1. **System.** Each variant (two by default) builds the whole product's system: tokens, every part, one chart language with the marks each screen's shape needs, a shell drawn by one script, a store shared across pages, one world of sample facts for every screen, the contracts for shared state (`CONTRACTS.md`), the rules for later builders (`SYSTEM.md`), and the first two screens. Then it stops, and `CHECKPOINT.md` shows each variant's lead screens.
 2. **You approve one.** `--resume <run> --approve <v>`.
 3. **Screens.** One agent per remaining screen, `--concurrency` at a time, each in its own copy of the approved product. Only the files it owns come back; parts it had to build outside the system are written down for the review.
-4. **Review.** `tells consistent`, `check` and `render` across the screens, then one agent folds the needs into the system, fixes drift and walks the contracts. `REPORT.md` has the before and after.
+4. **Review.** `tells consistent`, `check`, `render` and `click` across the screens, then one agent folds the needs into the system, fixes drift and walks the contracts. `REPORT.md` has the before and after.
 
 A run stopped by a limit resumes with `--resume <run>`: finished screens are kept and failed ones run again.
 
-`tells consistent <screens…>` is the check behind step 4, and it works on its own. Inside one product, sameness is the point, so it renders every screen and flags the one whose typeface, heading sizes, page colour, panel, chart mark, shell or accent differ from the system: what most screens share, or what the screens named with `--lead` share. Routes of a single-page app work as `index.html#/inbox`. On one ten-screen product, it failed the six pages built as separate briefs (two page colours, two panel surfaces and two h1 sizes, though every page shared the typeface) and passed the version built on one shared library.
+`tells consistent <screens…>` is the check behind step 4, and it works on its own. Inside one product, sameness is the point, so it renders every screen and flags the one whose typeface, heading sizes, page colour, panel, shell or accent differ from the system: what most screens share, or what the screens named with `--lead` share. Routes of a single-page app work as `index.html#/inbox`. On one ten-screen product, it failed the six pages built as separate briefs (two page colours, two panel surfaces and two h1 sizes, though every page shared the typeface) and passed the version built on one shared library.
+
+`tells click <screens…>` presses every button, tab and `role=button` on each page, one at a time from a fresh store, and compares the page before and after: its markup, its storage, an open dialog, its address. A control that throws is an error, one that changes nothing is a warning, and so is a relative link to a page that doesn't exist. It also reports a page that throws while loading. Agents can't open a browser, so this is how a run knows its controls work. On the first roaster product it found a "Show log" button that did nothing; on the second, seven timeline blocks marked `role=button` that move only by drag and arrow keys.
 
 ### References
 
@@ -311,7 +314,7 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 </details>
 
 <details>
-<summary><b><code>tells render</code></b>: 25 rules on the rendered page</summary>
+<summary><b><code>tells render</code></b>: 26 rules on the rendered page</summary>
 
 <!-- rules:render -->
 | Rule | Severity | Category | Fix |
@@ -319,6 +322,7 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 | `horizontal-overflow` | error | layout | Eliminate horizontal overflow (scrollWidth > viewport width) at every tested width. |
 | `clipped-text` | warn | layout | Prevent text clipping or descender cut-off inside overflow:hidden containers (check wrapping, width, and line-height). |
 | `cramped-padding` | warn | layout | Give bordered/surface containers at least 8px padding on non-zero sides. |
+| `off-centre-label` | warn | layout | Centre a control's one-line label in its height (align-items: center, or equal padding); text stuck to one edge reads as cut off. |
 | `tall-top-nav` | warn | layout | Keep desktop top navigation on a single line and <= 80px tall. |
 | `icon-feature-grid` | error | layout | Replace the 3–4 card icon-on-top feature grid with real product proof, a table, or copy that fits the subject. |
 | `stat-strip` | warn | layout | Replace the row of identical big-number + tiny-label stat blocks with one focal number and the context or chart that explains it. |
@@ -372,10 +376,24 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 | `drift-heading` | warn | Use the system's heading sizes; the same level is the same size on every screen. |
 | `drift-page` | error | Every screen sits on the same page colour. |
 | `drift-panel` | error | Use the system's panel: same radius, surface and line on every screen. |
-| `drift-chart` | error | One chart mark across the product. Draw this trend with the system's mark. |
+| `one-shape` | warn | Every screen draws its data with the same one mark. Share the chart language (axis, labels, tooltip, colours), not the shape: draw each screen's main object the way it works (a day as a timeline, a process as stages, a level running down to a date). |
 | `drift-shell` | error | Every screen sits in the same shell (navigation and layout). |
 | `drift-accent` | warn | This screen brings in a colour the system doesn't use. Use the system's accent, or the system's status colours. |
 <!-- /rules:consistent -->
+
+</details>
+
+<details>
+<summary><b><code>tells click</code></b>: 4 rules from pressing every control</summary>
+
+<!-- rules:click -->
+| Rule | Severity | Fix |
+|---|---|---|
+| `script-error` | error | The page throws while it loads. Fix the script: every control after the error is likely dead. |
+| `click-error` | error | Pressing this control throws. Fix the handler. |
+| `dead-control` | warn | Pressing this changes nothing on the page or in its store. Wire it to an action, or remove it. A thing you drag or move with arrow keys isn't a button: drop role=button. |
+| `broken-link` | error | This link points at a file that doesn't exist. Build the page, or link to one that does. |
+<!-- /rules:click -->
 
 </details>
 

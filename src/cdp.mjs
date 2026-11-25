@@ -114,10 +114,13 @@ export function startServer(rootDir) {
 }
 
 // Serve from the cwd when every target is inside it, so pages can load siblings like ../assets/x.svg.
-// Otherwise serve from the deepest folder that holds every target, so paths outside the cwd still load.
+// Otherwise serve from one folder above the deepest folder that holds every target, so paths outside the cwd still load.
 export function serveRootFor(files, cwd = ROOT) {
   const inside = (f) => !path.relative(cwd, f).startsWith("..") && !path.isAbsolute(path.relative(cwd, f));
-  return files.every(inside) ? cwd : commonDir(files);
+  if (files.every(inside)) return cwd;
+  // One folder up, so a page in screens/ can still load ../system/ and ../data/.
+  const common = commonDir(files);
+  return path.dirname(common) === common ? common : path.dirname(common);
 }
 
 export function commonDir(files) {

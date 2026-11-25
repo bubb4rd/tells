@@ -8,7 +8,7 @@
  *   tells make --resume <out> --approve v1      continue from the system you chose
  *   tells make --resume <out>                   pick up a stopped run (failed screens run again)
  *
- * 1. System: each variant designs the whole product's system (tokens, parts, shell, store, one chart style),
+ * 1. System: each variant designs the whole product's system (tokens, parts, shell, store, one chart language),
  *    one world of sample facts, the shared-state contracts, and the first two screens. Then it stops: a person
  *    looks at the lead screens and approves one system. Taste is decided once, where it matters.
  * 2. Screens: one agent per remaining screen, in parallel, each in its own copy of the approved product. Only
@@ -148,11 +148,13 @@ function audit(dir, state) {
   const cons = tells(["consistent", "screens", ...leads.flatMap((l) => ["--lead", l]), "--json"], dir);
   const chk = tells(["check", ".", "--json"], dir);
   const ren = tells(["render", "screens", "--json", "--widths", "1440,390"], dir);
+  const clk = tells(["click", "screens", "--json"], dir);
   const count = (hits, sev) => (hits ?? []).filter((h) => h.severity === sev).length;
   return {
     consistent: { errors: count(cons.hits, "error"), warnings: count(cons.hits, "warn"), hits: cons.hits ?? [], system: cons.system ?? null, error: cons.error },
     check: { errors: count(chk.hits, "error"), warnings: count(chk.hits, "warn"), hits: chk.hits ?? [], error: chk.error },
     render: { errors: count(ren.hits, "error"), warnings: count(ren.hits, "warn"), hits: ren.hits ?? [], error: ren.error },
+    click: { errors: count(clk.hits, "error"), warnings: count(clk.hits, "warn"), hits: clk.hits ?? [], error: clk.error },
   };
 }
 
@@ -188,7 +190,7 @@ export function revisePrompt(state, notes) {
   });
 }
 
-const line = (a) => `consistent ${a.consistent.errors}E/${a.consistent.warnings}W · check ${a.check.errors}E/${a.check.warnings}W · render ${a.render.errors}E/${a.render.warnings}W`;
+const line = (a) => `consistent ${a.consistent.errors}E/${a.consistent.warnings}W · check ${a.check.errors}E/${a.check.warnings}W · render ${a.render.errors}E/${a.render.warnings}W${a.click ? ` · click ${a.click.errors}E/${a.click.warnings}W` : ""}`;
 
 /** Re-check each variant's lead screens and write CHECKPOINT.md for the person to pick from. */
 function checkpoint(out, state, variants, { say, paint, only = null }) {
@@ -461,6 +463,7 @@ export async function run(argv) {
         ...section("tells consistent", hitLines(before, "consistent")),
         ...section("tells check", hitLines(before, "check")),
         ...section("tells render", hitLines(before, "render")),
+        ...section("tells click", hitLines(before, "click")),
         ...section("Needs from the screen builders", needs, "None."),
       ].join("\n"),
     );

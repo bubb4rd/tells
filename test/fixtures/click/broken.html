@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Broken</title><script src="system/app.js"></script></head>
+<body><main>
+  <h1>Orders</h1>
+  <p id="n">0</p>
+  <button id="works" type="button">Confirm</button>
+  <button type="button">Export</button>
+  <!-- tells-ok: dead-control copies to the clipboard, which headless Chrome blocks -->
+  <button type="button">Copy</button>
+  <button id="throws" type="button">Ship</button>
+  <div class="span" role="button" tabindex="0">Batch 1195</div>
+  <button type="button" data-tells-ok="dead-control opens the print dialog, which headless Chrome skips">Print</button>
+  <a href="missing.html">Roasts</a>
+  <a href="ok.html">Today</a>
+</main>
+<script>
+  document.getElementById('works').addEventListener('click', () => { App.bump(); document.getElementById('n').textContent = App.count; });
+  document.getElementById('throws').addEventListener('click', () => { undefinedThing.ship(); });
+</script></body></html>

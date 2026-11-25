@@ -63,6 +63,13 @@ export const COMMANDS = {
     example: "tells consistent screens/ --lead screens/today.html --lead screens/orders.html",
     inputs: "pages",
   },
+  click: {
+    usage: "[files|dirs...]",
+    summary: "Press every control from a fresh start: errors, dead controls, broken links",
+    reads: "HTML files and folders of them. Each page loads with its storage cleared, once per control. Needs Chrome, Chromium or Edge.",
+    example: "tells click screens/ --strict",
+    inputs: "files",
+  },
   refs: {
     usage: "[list|add|remove]",
     summary: "Your library of reference screens for make --reference",
@@ -71,15 +78,15 @@ export const COMMANDS = {
   },
   rules: {
     usage: "[set]",
-    summary: "List every rule with its fix; sets: check, render, same, consistent",
+    summary: "List every rule with its fix; sets: check, render, same, consistent, click",
     example: "tells rules render",
   },
 };
 
 // `scope` is how the flag is labelled in `tells --help`; per-command help leaves it out.
 export const FLAGS = [
-  { name: "json", text: "machine-readable output", cmds: ["check", "fix", "render", "same", "pick", "measure", "consistent"] },
-  { name: "strict", text: "fail on warnings as well as errors", cmds: ["check", "fix", "render", "consistent"] },
+  { name: "json", text: "machine-readable output", cmds: ["check", "fix", "render", "same", "pick", "measure", "consistent", "click"] },
+  { name: "strict", text: "fail on warnings as well as errors", cmds: ["check", "fix", "render", "consistent", "click"] },
   { name: "rule", arg: "<id>", text: "run one rule", cmds: ["check", "fix", "render"] },
   { name: "dry-run", text: "show what would change, write nothing", cmds: ["fix"] },
   { name: "radius", arg: "<css>", text: "radius that replaces pills (default 6px)", cmds: ["fix"] },
@@ -113,10 +120,10 @@ export const FLAGS = [
   { name: "name", arg: "<n>", text: "name it in the library (default: from the URL or file)", cmds: ["refs"], global: false },
   { name: "no-render", text: "skip the headless Chrome checks", cmds: ["same", "pick", "make"] },
   { name: "lead", arg: "<file>", text: "the approved screens that define the system (repeatable)", cmds: ["consistent"] },
-  { name: "theme", arg: "<t>", text: "light (default) or dark, whatever the machine is set to", cmds: ["render", "same", "measure", "consistent"] },
+  { name: "theme", arg: "<t>", text: "light (default) or dark, whatever the machine is set to", cmds: ["render", "same", "measure", "consistent", "click"] },
   { name: "widths", arg: "a,b,c", text: "viewport widths in px (default 1440,960,390)", cmds: ["render"] },
   // Used between commands (`tells rules`, `tells pick`), not documented.
-  { name: "rules", cmds: ["check", "render", "same", "consistent"], hidden: true },
+  { name: "rules", cmds: ["check", "render", "same", "consistent", "click"], hidden: true },
   { name: "fingerprint", arg: "<json>", cmds: ["same"], hidden: true },
   { name: "no-siblings", cmds: ["same"], hidden: true },
 ];
@@ -224,7 +231,7 @@ export function help() {
     }),
     "",
     "Run tells <command> --help for what a command reads and an example.",
-    "check, fix, render, same, pick and consistent exit 1 when errors are found (or warnings, with --strict).",
+    "check, fix, render, same, pick, consistent and click exit 1 when errors are found (or warnings, with --strict).",
     "Every command exits 2 when it can't run: an unknown flag, a missing path, a page that won't load.",
     "Allow one hit with a written reason:  <!-- tells-ok: <rule-id> <reason> -->",
     "Project facts (real shortcuts, project-wide exceptions) go in .tellsrc; see the README.",
