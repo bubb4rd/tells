@@ -89,6 +89,19 @@ Choose between variants with checks instead: the rules, then product-led over me
 
 So an unattended loop matches the picker at cutting default-looking work. It doesn't yet match them at polishing a design that already passes. That's where a person's pick still earns its time, and where the next checkable rule should come from.
 
+### Learn finish from a reference
+
+Rules and checks only remove defaults, and each one removed made room for the next. Generators steered by the rule set and the angles settled into a house style of their own: a condensed grotesk on pale grey paper, one blue, an invented origin for every colour, and "one bold move" played as a poster-size number. Measured on 28 shipped product pages, the largest type on the first screen ran 1.4 to 3.5 times body size (10th to 90th percentile); all six angle variants on three briefs ran 4.5 to 13.
+
+What worked was a shipped screen to study. Each agent rebuilt a reference first, wrote down its decisions in px and counts, built the brief with those decisions, then listed at least eight concrete differences against the reference and fixed them, twice. The same three briefs came out as screens a team could have shipped, every lead at 1.4 to 2.5 times body.
+
+Those three references were the same kind and the same subject, so the agents mostly reskinned them. The test that counts is a different subject: a night-nurse handover with GitHub's issue list as the reference. The structure came from the ward (patients sorted by deterioration score, flags as small chips, a due-before rail, about 160 items on the first screen) and the finish from the reference. The angle variants on the same brief led with a 152px "3" and held 51 to 105 items. The reference's look leaked too, a dark theme and a green button, so the prompt now asks for palette and theme from the subject.
+
+This is one session, four briefs and two variants each, judged by one person's eye, not blind picks. Read it as a strong lead. Two things follow:
+
+- **Taste goes in through what you choose to study.** A library of references, each with why it's good, is the taste model. It's explicit, it grows, and it can't learn "looks like an earlier losing draft".
+- **Compare against a reference, never judge in the abstract.** "List where the reference is more finished than yours, in px and counts" gets concrete, checkable answers. "Is this good?" got judges at chance.
+
 ---
 
 ## Part 2: What held up

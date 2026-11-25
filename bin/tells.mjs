@@ -10,6 +10,8 @@ Usage
   tells same   [designs|urls...] Catch a design that lands on a cliché cluster, your house style or a sibling
   tells pick   <variants...>     Choose between variants with checks: errors, exceptions, sameness, warnings
   tells make   "<brief>"         Build variants in parallel with an agent, fix them, pick one, write a report
+  tells measure [files|urls...]  Profile a rendered screen: lead, density, type steps, alignment
+  tells refs   [add|remove]      Your library of reference screens for make --reference
   tells rules  [check|render|same] List every rule with its severity and fix
 
 Flags
@@ -21,7 +23,15 @@ Flags
   --against <p>   same, pick, make: past designs to compare with (repeatable)
   --house <p>     same, pick, make: compare with this design instead of the majority
   --rendered      same: fingerprint rendered styles, colour role and layout in headless Chrome
+  --reference <r> make: study this screen (library name, URL, HTML or image; repeatable)
+  --kind <k>      make: study every library reference of this kind
+  --page <p>      make: landing or product (default: guessed from the brief)
+  --assets <dir>  make: real logos, photos and art for the agents to use
+  --current <png> make: a screenshot of the page being redesigned
+  --style         make: take the look from the reference too, not only its finish
   --variants <n>  make: how many to build (default 4)
+  --shots <dir>   measure: save a 1440×900 screenshot of each page
+  --full          measure, refs add: screenshot the whole page, up to 4,000px
   --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
   --no-render     same, pick, make: skip the headless Chrome checks
   --widths a,b,c  Viewport widths for render
@@ -53,6 +63,16 @@ if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") {
 } else if (cmd === "render") {
   await (await import("../src/render.mjs")).run(rest).catch((err) => {
     console.error(`tells render: ${err.message}`);
+    process.exit(2);
+  });
+} else if (cmd === "measure") {
+  await (await import("../src/measure.mjs")).run(rest).catch((err) => {
+    console.error(`tells measure: ${err.message}`);
+    process.exit(2);
+  });
+} else if (cmd === "refs") {
+  await (await import("../src/references.mjs")).run(rest).catch((err) => {
+    console.error(`tells refs: ${err.message}`);
     process.exit(2);
   });
 } else if (cmd === "rules") {
