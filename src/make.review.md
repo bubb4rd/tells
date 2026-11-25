@@ -19,7 +19,7 @@ The system and its lead screens, `screens/{{lead1}}.html` and `screens/{{lead2}}
 3. **Walk the contracts.** For each contract in `CONTRACTS.md`, follow it across the screens in the code: the change happens where it says, and the other screens read it. Fix what's broken. Check every link in the navigation lands on a screen.
 4. **Facts agree.** The same customer, order, date or amount reads the same everywhere.
 
-Write `REVIEW.md`: what you changed and why, as a list, and what you'd still change.
+Write `REVIEW.md`: what you changed and why, as a list, and what you'd still change. To delete a file you've made redundant, list its path in `DELETE.txt`, one per line: `tells make` deletes them after you finish.
 
 ## Last
 
@@ -31,4 +31,4 @@ node {{tells}}/bin/tells.mjs consistent screens --lead screens/{{lead1}}.html --
 node {{tells}}/bin/tells.mjs measure screens --shots shots
 ```
 
-Fix every error and warning. Don't ask anything, and don't wait for approval.
+Fix every error and warning. Project-wide exceptions in `.tellsrc` (`allow`) aren't yours to grant: `tells make` sets any you write aside for the person to decide. Fix the hit, or keep one with a `tells-ok` comment and a reason. Don't ask anything, and don't wait for approval.

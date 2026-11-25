@@ -475,6 +475,20 @@ export async function run(argv) {
         return;
       }
     }
+    // Agents run only node, so deletions they want come as a list; only files inside the product go.
+    const delList = path.join(product, "DELETE.txt");
+    if (fs.existsSync(delList)) {
+      const removed = [];
+      for (const rel of fs.readFileSync(delList, "utf8").split("\n").map((l) => l.trim()).filter(Boolean)) {
+        const abs = path.resolve(product, rel);
+        if (abs.startsWith(product + path.sep) && fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+          fs.rmSync(abs);
+          removed.push(rel);
+        }
+      }
+      fs.rmSync(delList);
+      state.deleted = removed;
+    }
     const setAside = quarantineAllow(product);
     if (setAside) state.proposed = { ...(state.proposed ?? {}), review: setAside };
     tells(["measure", "screens", "--shots", "shots", "--json"], product);
