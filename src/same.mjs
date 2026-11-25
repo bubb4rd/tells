@@ -704,6 +704,8 @@ export async function run(argv = process.argv.slice(2)) {
   else print(results, makePaint(Boolean(process.stdout.isTTY) && !process.env.NO_COLOR));
 
   if (results.some((r) => r.hits?.length)) process.exitCode = 1;
+  // Nothing readable means nothing was compared, which isn't a pass.
+  if (results.every((r) => r.error)) process.exitCode = 2;
 }
 
 function print(results, paint) {
@@ -737,6 +739,11 @@ function print(results, paint) {
     out.push("");
   }
   const failed = results.filter((r) => r.hits?.length).length;
-  out.push(failed ? paint.bold(`${failed} of ${results.length} design${results.length === 1 ? "" : "s"} ${failed === 1 ? "lands" : "land"} on a default or a sibling.`) : paint.green(`${results.length} design${results.length === 1 ? "" : "s"} checked. None land on a default or a sibling.`));
+  const unread = results.filter((r) => r.error).length;
+  const read = results.length - unread;
+  const designs = (n) => `${n} design${n === 1 ? "" : "s"}`;
+  if (failed) out.push(paint.bold(`${failed} of ${designs(read)} ${failed === 1 ? "lands" : "land"} on a default or a sibling.`));
+  else if (read) out.push(paint.green(`${designs(read)} checked. None land on a default or a sibling.`));
+  if (unread) out.push(paint.yellow(`${designs(unread)} couldn't be read, so ${unread === 1 ? "it wasn't" : "they weren't"} checked.`));
   console.log(out.join("\n"));
 }

@@ -14,7 +14,8 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR, emulateTheme, themeOf } from "./cdp.mjs";
+import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR, emulateTheme, themeOf, navigate } from "./cdp.mjs";
+import { intFlag } from "./cli.mjs";
 
 const ROOT = process.cwd();
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "shots", "_assets"]);
@@ -263,13 +264,14 @@ function walkHtml(target, out) {
   const stat = fs.statSync(target);
   if (stat.isFile()) {
     if (target.endsWith(".html")) out.push(target);
-    return;
+    return out;
   }
   for (const e of fs.readdirSync(target, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     if (e.isDirectory()) {
       if (!SKIP_DIRS.has(e.name)) walkHtml(path.join(target, e.name), out);
     } else if (e.name.endsWith(".html")) out.push(path.join(target, e.name));
   }
+  return out;
 }
 
 export async function measurePages(inputs, { width = 1440, height = 900, shots = null, fullPage = false, timeout = 20000, onPage = null, theme = "light" } = {}) {
@@ -300,9 +302,7 @@ export async function measurePages(inputs, { width = 1440, height = 900, shots =
         await browser.send("Runtime.enable", {}, sessionId);
         await emulateTheme(browser, sessionId, theme);
         await browser.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width <= 480 }, sessionId);
-        const loaded = browser.onceEvent("Page.loadEventFired", sessionId, timeout).catch(() => null);
-        await browser.send("Page.navigate", { url }, sessionId, timeout);
-        await loaded;
+        await navigate(browser, sessionId, url, { timeout, lenient: true });
         await browser.send("Runtime.evaluate", { expression: "new Promise(r => setTimeout(r, 1200))", awaitPromise: true }, sessionId, timeout);
         await browser.send("Runtime.evaluate", { expression: SETTLE_EXPR, awaitPromise: true }, sessionId, timeout);
         const res = await browser.send("Runtime.evaluate", { expression: `(${inPageMeasure.toString()})()`, returnByValue: true }, sessionId, timeout);
@@ -363,12 +363,19 @@ export async function run(argv = process.argv.slice(2)) {
       else flags[k] = true;
     } else positional.push(a);
   }
-  const results = await measurePages(positional.length ? positional : ["."], {
-    width: flags.width ? parseInt(flags.width, 10) : 1440,
+  const inputs = positional.length ? positional : ["."];
+  const theme = themeOf(flags);
+  const width = intFlag("width", flags.width, { min: 240, max: 4096, fallback: 1440 });
+  const pages = inputs.filter((i) => /^https?:\/\//i.test(i) || walkHtml(path.resolve(ROOT, i), []).length);
+  if (!pages.length) throw new Error(`no HTML pages in ${inputs.join(", ")}. measure loads .html files and http(s) URLs.`);
+  const results = await measurePages(inputs, {
+    width,
     shots: typeof flags.shots === "string" ? flags.shots : null,
     fullPage: Boolean(flags.full),
-    theme: themeOf(flags),
+    theme,
     onPage: flags.json ? null : (m) => console.log(describe(m) + "\n"),
   });
   if (flags.json) console.log(JSON.stringify(results, null, 2));
+  // measure never fails a screen, but a page it couldn't load is a failure to run.
+  if (results.some((m) => m.error)) process.exitCode = 2;
 }

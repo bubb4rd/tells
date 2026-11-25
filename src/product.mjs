@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { display, makePaint, parseArgs } from "./check.mjs";
 import { resolveReferences } from "./references.mjs";
 import { runAgent } from "./make.mjs";
+import { intFlag } from "./cli.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TELLS = path.resolve(HERE, "..");
@@ -254,8 +255,9 @@ export async function run(argv) {
   const say = (s) => process.stdout.write(s + "\n");
   const agent = valueOf("agent");
   const model = valueOf("model");
-  const concurrency = Math.max(1, Math.min(8, Number(valueOf("concurrency")) || 3));
-  const minutes = Number(valueOf("timeout")) || null;
+  const concurrency = intFlag("concurrency", valueOf("concurrency"), { min: 1, max: 8, fallback: 3 });
+  const minutes = intFlag("timeout", valueOf("timeout"), { min: 1, max: 600, fallback: null });
+  const variantCount = intFlag("variants", valueOf("variants"), { min: 1, max: 4, fallback: 2 });
 
   const resume = valueOf("resume");
   let out;
@@ -297,7 +299,7 @@ export async function run(argv) {
         process.exit(2);
       }
     }
-    const variants = Math.max(1, Math.min(4, Number(valueOf("variants")) || 2));
+    const variants = variantCount;
     state = {
       brief, screens, style: Boolean(flags.style), assets, variants,
       refs: refs.map((r) => ({ name: r.name, url: r.url ?? null, why: r.why ?? null, png: r.png })),

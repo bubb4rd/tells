@@ -14,7 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { configFor } from "./config.mjs";
-import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR, emulateTheme, themeOf } from "./cdp.mjs";
+import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR, emulateTheme, themeOf, navigate } from "./cdp.mjs";
 
 const ROOT = process.cwd();
 const DEFAULT_PATHS = ["."];
@@ -70,6 +70,15 @@ function parseArgs(argv) {
     }
   }
   return { positional, flags };
+}
+
+/** "1440,390" → [1440, 390]. Every width must be a whole number of px a screen can have. */
+export function parseWidths(raw) {
+  const parts = String(raw).split(",").map((s) => s.trim());
+  const widths = parts.map(Number);
+  const bad = parts.filter((s, i) => !Number.isInteger(widths[i]) || widths[i] < 240 || widths[i] > 4096);
+  if (bad.length || !parts.length) throw new Error(`--widths takes px from 240 to 4096, like 1440,960,390; "${bad.join(",") || raw}" isn't.`);
+  return widths;
 }
 
 const display = (p) => {
@@ -1311,9 +1320,7 @@ async function auditTarget(browser, url, label, widths, onlyRule, theme = "light
         sessionId
       );
 
-      const loaded = browser.onceEvent("Page.loadEventFired", sessionId, 15000);
-      await browser.send("Page.navigate", { url }, sessionId);
-      await loaded;
+      await navigate(browser, sessionId, url);
 
       // Wait briefly for web fonts & layout settle
       await browser.send("Runtime.evaluate", { expression: SETTLE_EXPR, awaitPromise: true }, sessionId);
@@ -1367,6 +1374,8 @@ async function auditTarget(browser, url, label, widths, onlyRule, theme = "light
         });
       }
     }
+  } catch (err) {
+    throw new Error(err.message.includes(url) ? err.message : `${label}: ${err.message}`);
   } finally {
     await browser.send("Target.closeTarget", { targetId }).catch(() => {});
   }
@@ -1528,17 +1537,11 @@ export async function run(argv = process.argv.slice(2)) {
 
   const onlyRule = typeof flags.rule === "string" ? flags.rule : null;
   if (flags.rule && (!onlyRule || !RULE_BY_ID.has(onlyRule))) {
-    console.error(`Error: unknown rule "${onlyRule ?? ""}". Known: ${RULES.map((r) => r.id).join(", ")}`);
-    process.exit(2);
+    throw new Error(`unknown rule "${onlyRule ?? ""}". Known: ${RULES.map((r) => r.id).join(", ")}`);
   }
 
   const theme = themeOf(flags);
-  const explicitWidths = flags.widths
-    ? String(flags.widths)
-        .split(",")
-        .map((n) => parseInt(n.trim(), 10))
-        .filter((n) => Number.isFinite(n) && n >= 240)
-    : null;
+  const explicitWidths = flags.widths ? parseWidths(flags.widths) : null;
 
   const rawInputs = positional.length ? positional : DEFAULT_PATHS;
   const targets = [];
@@ -1553,7 +1556,7 @@ export async function run(argv = process.argv.slice(2)) {
       for (const f of files) {
         needsServer = true;
         const rel = display(f);
-        const isMobileOnly = /(?:^|\/)(?:mobile|m\d+-)/i.test(rel);
+        const isMobileOnly = /(?:^|[\\/])(?:mobile|m\d+-)/i.test(rel);
         targets.push({
           kind: "file",
           file: f,
@@ -1565,8 +1568,9 @@ export async function run(argv = process.argv.slice(2)) {
   }
 
   if (!targets.length) {
-    console.error("tells render: no HTML files or URLs found.");
-    process.exit(1);
+    throw new Error(
+      `no HTML pages in ${rawInputs.join(", ")}. render loads .html files and http(s) URLs: build the app first, or point it at a dev server (tells render http://localhost:3000).`
+    );
   }
 
   const chromePath = findChrome();

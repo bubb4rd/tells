@@ -1011,6 +1011,10 @@ function summarize(hits, allowed) {
 
 // ---------------------------------------------------------------------------
 
+/** Checking nothing isn't a pass: a wrong path in CI would go green forever. */
+export const noSource = (targets) =>
+  `no UI source in ${targets.map(display).join(", ")}. It reads .html, .css, .jsx, .tsx and .mdx, and .js, .mjs or .ts files that build HTML (node_modules, dist and build are skipped). For a built or live page, use tells render.`;
+
 export function run(argv = process.argv.slice(2)) {
   const { positional, flags } = parseArgs(argv);
 
@@ -1021,13 +1025,13 @@ export function run(argv = process.argv.slice(2)) {
 
   const onlyRule = typeof flags.rule === "string" ? flags.rule : null;
   if (flags.rule && (!onlyRule || !RULE_BY_ID.has(onlyRule))) {
-    console.error(`Error: unknown rule "${onlyRule ?? ""}". Known: ${RULES.map((r) => r.id).join(", ")}`);
-    process.exit(2);
+    throw new Error(`unknown rule "${onlyRule ?? ""}". Known: ${RULES.map((r) => r.id).join(", ")}`);
   }
 
   const targets = (positional.length ? positional : DEFAULT_PATHS).map((p) => path.resolve(ROOT, p));
   const files = [];
   for (const t of targets) walk(t, files);
+  if (!files.length) throw new Error(noSource(targets));
 
   const hits = [];
   const allowed = [];
