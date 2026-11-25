@@ -27,6 +27,7 @@ const RULES = [
   { id: "horizontal-overflow", category: "layout", severity: "error", fix: "Eliminate horizontal overflow (scrollWidth > viewport width) at every tested width." },
   { id: "clipped-text", category: "layout", severity: "warn", fix: "Prevent text clipping or descender cut-off inside overflow:hidden containers (check wrapping, width, and line-height)." },
   { id: "cramped-padding", category: "layout", severity: "warn", fix: "Give bordered/surface containers at least 8px padding on non-zero sides." },
+  { id: "off-centre-label", category: "layout", severity: "warn", fix: "Centre a control's one-line label in its height (align-items: center, or equal padding); text stuck to one edge reads as cut off." },
   { id: "tall-top-nav", category: "layout", severity: "warn", fix: "Keep desktop top navigation on a single line and <= 80px tall." },
   { id: "icon-feature-grid", category: "layout", severity: "error", fix: "Replace the 3–4 card icon-on-top feature grid with real product proof, a table, or copy that fits the subject." },
   { id: "stat-strip", category: "layout", severity: "warn", fix: "Replace the row of identical big-number + tiny-label stat blocks with one focal number and the context or chart that explains it." },
@@ -344,6 +345,7 @@ function inPageAudit(viewportWidth) {
   const seenClipped = new Set();
   const seenTap = new Set();
   const seenCramped = new Set();
+  const seenOffCentre = new Set();
   const seenConcentric = new Set();
   const seenMono = new Set();
   const avatarSources = new Map();
@@ -518,6 +520,29 @@ function inPageAudit(viewportWidth) {
           if (!seenCramped.has(key) && seenCramped.size < 6) {
             seenCramped.add(key);
             add("cramped-padding", describe(el), `min non-zero padding ${minP.toFixed(0)}px (< 8px)`, el);
+          }
+        }
+      }
+    }
+
+    // A one-line control label stuck to one edge of a taller control: a stretched tab or button whose text sits at its top
+    if (rect.height >= 28 && rect.width >= 16 && el.matches('button, a[href], [role="tab"], [role="button"]') && el.textContent.trim()) {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const lines = [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+      if (lines.length) {
+        const top = Math.min(...lines.map((r) => r.top));
+        const bottom = Math.max(...lines.map((r) => r.bottom));
+        const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.4;
+        if (bottom - top <= lh * 1.3) {
+          const above = top - rect.top;
+          const below = rect.bottom - bottom;
+          if (Math.abs(above - below) >= 8 && Math.min(above, below) < Math.max(above, below) / 3) {
+            const key = `${tag}.${el.className}`;
+            if (!seenOffCentre.has(key) && seenOffCentre.size < 6) {
+              seenOffCentre.add(key);
+              add("off-centre-label", describe(el), `${Math.round(above)}px above the text, ${Math.round(below)}px below`, el);
+            }
           }
         }
       }

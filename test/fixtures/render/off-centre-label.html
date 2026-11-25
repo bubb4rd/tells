@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Orders</title>
+<style>
+  body { font: 14px/20px system-ui, sans-serif; color: #1d1b18; background: #f3f2ee; margin: 0; padding: 32px; }
+  main { max-width: 900px; }
+  .panel { border: 1px solid #d2cfc6; border-radius: 8px; background: #fbfaf7; padding: 0 0 16px; }
+  .tabs { display: flex; gap: 24px; align-items: stretch; height: 40px; padding: 0 16px; border-bottom: 1px solid #d2cfc6; }
+  .tab { display: flex; align-items: baseline; gap: 8px; padding: 0; border: 0; background: none; color: #1d1b18; font: inherit; cursor: pointer; }
+  .tab:focus-visible { outline: 2px solid #1d1b18; }
+  p { margin: 16px; }
+  @media (max-width: 480px) { .tab { min-width: 44px; min-height: 44px; } .tabs { height: 44px; } }
+</style></head>
+<body><main><h1>Orders</h1>
+<div class="panel">
+  <div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true">Placed 4</button><button class="tab" role="tab" aria-selected="false">Shipped 3</button></div>
+  <p>Four orders are waiting to be confirmed.</p>
+</div></main></body></html>

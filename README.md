@@ -301,7 +301,7 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 </details>
 
 <details>
-<summary><b><code>tells render</code></b>: 25 rules on the rendered page</summary>
+<summary><b><code>tells render</code></b>: 26 rules on the rendered page</summary>
 
 <!-- rules:render -->
 | Rule | Severity | Category | Fix |
@@ -309,6 +309,7 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 | `horizontal-overflow` | error | layout | Eliminate horizontal overflow (scrollWidth > viewport width) at every tested width. |
 | `clipped-text` | warn | layout | Prevent text clipping or descender cut-off inside overflow:hidden containers (check wrapping, width, and line-height). |
 | `cramped-padding` | warn | layout | Give bordered/surface containers at least 8px padding on non-zero sides. |
+| `off-centre-label` | warn | layout | Centre a control's one-line label in its height (align-items: center, or equal padding); text stuck to one edge reads as cut off. |
 | `tall-top-nav` | warn | layout | Keep desktop top navigation on a single line and <= 80px tall. |
 | `icon-feature-grid` | error | layout | Replace the 3–4 card icon-on-top feature grid with real product proof, a table, or copy that fits the subject. |
 | `stat-strip` | warn | layout | Replace the row of identical big-number + tiny-label stat blocks with one focal number and the context or chart that explains it. |
