@@ -8,6 +8,7 @@ import path from "node:path";
 import { OTHER_TOOL_RULES } from "../src/check.mjs";
 import { RULES as RENDER_RULES } from "../src/render.mjs";
 import { RULES as SAME_RULES } from "../src/same.mjs";
+import { RULES as CONSISTENT_RULES } from "../src/consistent.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const bin = path.join(here, "..", "bin", "tells.mjs");
@@ -56,8 +57,8 @@ test("tells-ok and slop-ok both allow a hit with a reason", () => {
   assert.equal(code, 0);
 });
 
-test("tells-ok for render and same rules is accepted by check, and rule lists stay in sync", () => {
-  const expected = [...RENDER_RULES, ...SAME_RULES].map((r) => r.id).sort();
+test("tells-ok for render, same and consistent rules is accepted by check, and rule lists stay in sync", () => {
+  const expected = [...RENDER_RULES, ...SAME_RULES, ...CONSISTENT_RULES].map((r) => r.id).sort();
   assert.deepEqual([...OTHER_TOOL_RULES].sort(), expected);
   const { out: sameFile } = check(path.join(fixtures, "same", "copy", "two", "tokens.css"));
   assert.ok(!sameFile.hits.some((h) => h.rule === "ok-unknown"), `unexpected ok-unknown: ${JSON.stringify(sameFile.hits)}`);
@@ -122,4 +123,12 @@ test(".tellsrc allow needs a known rule and a reason, and stays listed as allowe
   assert.ok(out.hits.some((h) => h.rule === "ok-unknown" && /made-up/.test(h.snippet)));
   assert.ok(out.hits.some((h) => h.rule === "ok-reason" && /em-dash/.test(h.snippet)));
   assert.ok(out.hits.some((h) => h.rule === "em-dash"), "an allow with no reason doesn't allow");
+});
+
+test("side-tab catches a stripe drawn with an inset shadow", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "tells-check-"));
+  const file = path.join(dir, "nav.css");
+  writeFileSync(file, ".nav a[aria-current] { box-shadow: inset 2px 0 0 var(--accent); }\n.card { box-shadow: inset 0 0 0 1px var(--line); }\n");
+  const { out } = check(file);
+  assert.deepEqual(out.hits.filter((h) => h.rule === "side-tab").map((h) => h.line), [1]);
 });

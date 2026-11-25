@@ -11,6 +11,7 @@ Usage
   tells pick   <variants...>     Choose between variants with checks: errors, exceptions, sameness, warnings
   tells make   "<brief>"         Build variants in parallel with an agent, fix them, pick one, write a report
   tells measure [files|urls...]  Profile a rendered screen: lead, density, type steps, alignment
+  tells consistent [screens...]  Check that a product's screens read as one system
   tells refs   [add|remove]      Your library of reference screens for make --reference
   tells rules  [check|render|same] List every rule with its severity and fix
 
@@ -30,11 +31,16 @@ Flags
   --current <png> make: a screenshot of the page being redesigned
   --style         make: take the look from the reference too, not only its finish
   --variants <n>  make: how many to build (default 4)
+  --product       make: several screens on one system; stops for you to approve the system (with --screens)
+  --screens <s>   make --product: "<id>: <job>; <id>: <job>; …", the first two are the lead screens
+  --resume <out>  make: continue a --product run; --approve <v> picks its system
+  --concurrency n make --product: screen agents at a time (default 3)
   --shots <dir>   measure: save a 1440×900 screenshot of each page
   --full          measure, refs add: screenshot the whole page, up to 4,000px
   --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
   --no-render     same, pick, make: skip the headless Chrome checks
-  --theme <t>     render, same, measure: light (default) or dark, whatever the machine is set to
+  --lead <file>   consistent: the approved screens that define the system (repeatable)
+  --theme <t>     render, same, measure, consistent: light (default) or dark, whatever the machine is set to
   --widths a,b,c  Viewport widths for render
 
 Exit code is 1 when errors are found (or warnings, with --strict).
@@ -72,6 +78,11 @@ if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") {
     console.error(`tells measure: ${err.message}`);
     process.exit(2);
   });
+} else if (cmd === "consistent") {
+  await (await import("../src/consistent.mjs")).run(rest).catch((err) => {
+    console.error(`tells consistent: ${err.message}`);
+    process.exit(2);
+  });
 } else if (cmd === "refs") {
   await (await import("../src/references.mjs")).run(rest).catch((err) => {
     console.error(`tells refs: ${err.message}`);
@@ -90,6 +101,10 @@ if (!cmd || cmd === "-h" || cmd === "--help" || cmd === "help") {
   if (!which || which === "same") {
     if (!which) console.log("\nsame");
     (await import("../src/same.mjs")).run(["--rules"]);
+  }
+  if (!which || which === "consistent") {
+    if (!which) console.log("\nconsistent");
+    await (await import("../src/consistent.mjs")).run(["--rules"]);
   }
 } else {
   console.error(`tells: unknown command "${cmd}"\n`);

@@ -43,6 +43,7 @@ const RULES = [
   { id: "small-tap-target", category: "mobile", severity: "warn", fix: "Make mobile interactive controls at least 44x44px (or expand their hit area)." },
   { id: "concentric-radius", category: "surfaces", severity: "warn", fix: "Match concentric radii on tightly inset surfaces (outerRadius = innerRadius + padding + borderWidth)." },
   { id: "split-surface", category: "surfaces", severity: "error", fix: "Keep primary navigation and canvas on cohesive surfaces; avoid pairing a dark sidebar with a light page." },
+  { id: "segmented-thumb", category: "surfaces", severity: "error", fix: "No raised pill on a grey track for tabs or filters. Mark the chosen option with ink and weight, or a line on the edge it sits on, in the same language as the rest of the screen." },
   { id: "nested-cards", category: "surfaces", severity: "error", fix: "Avoid cards inside cards. Use spacing, typography or a single surface level instead of nested boxes." },
   { id: "broken-image", category: "media", severity: "error", fix: "Fix broken image asset (naturalWidth === 0)." },
   { id: "duplicate-avatar", category: "media", severity: "error", fix: "Never reuse the same portrait/avatar image for two different people or duplicate the signed-in user avatar." },
@@ -651,6 +652,39 @@ function inPageAudit(viewportWidth) {
     }
   }
 
+  // Segmented thumb: a filled track holding one row of choices, the chosen one a raised, lighter pill
+  // (the stock tabs of every component kit). Hover and focus don't count: only one option has a surface.
+  {
+    const seenSeg = new Set();
+    const chDiff = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
+    const CHOICE = 'button, a[href], [role="tab"], [role="radio"], [role="option"], label';
+    for (const track of all) {
+      if (seenSeg.size >= 4) break;
+      if (!isVisible(track) || !track.parentElement) continue;
+      const visibleKids = [...track.children].filter(isVisible);
+      if (visibleKids.length < 2 || visibleKids.length > 8 || !visibleKids.every((c) => c.matches(CHOICE))) continue;
+      const tr = track.getBoundingClientRect();
+      if (tr.height > 56 || tr.width < 80) continue;
+      const trackBg = parseColor(getComputedStyle(track).backgroundColor);
+      if (trackBg[3] < 0.04) continue;
+      const parentBg = effectiveBg(track.parentElement);
+      if (!parentBg) continue;
+      const trackEff = blend(trackBg, parentBg);
+      if (chDiff(trackEff, parentBg) < 4) continue;
+      const top = visibleKids[0].getBoundingClientRect().top;
+      if (!visibleKids.every((k) => Math.abs(k.getBoundingClientRect().top - top) <= 4)) continue;
+      const raised = visibleKids.filter((k) => {
+        const b = parseColor(getComputedStyle(k).backgroundColor);
+        return b[3] > 0.04 && chDiff(blend(b, trackEff), trackEff) >= 4;
+      });
+      if (raised.length !== 1) continue;
+      const key = describe(track);
+      if (seenSeg.has(key)) continue;
+      seenSeg.add(key);
+      add("segmented-thumb", `${key} > ${describe(raised[0])}`, "the chosen option is a raised pill on a filled track", raised[0]);
+    }
+  }
+
   // Desktop structural checks: split-surface, icon-feature-grid, stat-strip, template-hero-stack, accent-rainbow, word-only-screen
   if (viewportWidth >= 960) {
     // Split surface: dark sidebar/rail paired with light canvas (or vice versa)
@@ -1177,7 +1211,64 @@ function inPageAudit(viewportWidth) {
                   ? "top-nav-workspace"
                   : "single-column";
 
+  // System traits over the whole page, not just the fold: what `tells consistent` compares across screens.
+  const rgbHexIn = (c) => "#" + [0, 1, 2].map((i) => Math.round(c[i]).toString(16).padStart(2, "0")).join("");
+  const sysFamilies = {};
+  const sysPanels = new Map();
+  const sysCharts = { dots: 0, bars: 0, lines: 0, canvas: 0 };
+  let sysH1 = null;
+  let sysH2 = null;
+  for (const el of all) {
+    if (!isVisible(el)) continue;
+    const tag = el.tagName.toLowerCase();
+    const cs = getComputedStyle(el);
+    if (tag === "svg") {
+      const r = el.getBoundingClientRect();
+      if (r.width >= 120 && r.height >= 24) {
+        const n = (sel) => el.querySelectorAll(sel).length;
+        const marks = { dots: n("circle, ellipse"), bars: n("rect"), lines: n("path, polyline, line") };
+        const top = Object.entries(marks).sort((a, b) => b[1] - a[1])[0];
+        if (top[1] >= 6) sysCharts[top[0]]++;
+      }
+      continue;
+    }
+    if (el.closest("svg")) continue;
+    if (tag === "canvas") {
+      const r = el.getBoundingClientRect();
+      if (r.width >= 120 && r.height >= 24) sysCharts.canvas++;
+      continue;
+    }
+    if (tag === "h1" && sysH1 === null) sysH1 = Math.round(parseFloat(cs.fontSize));
+    if (tag === "h2" && sysH2 === null) sysH2 = Math.round(parseFloat(cs.fontSize));
+    let text = "";
+    for (const c of el.childNodes) if (c.nodeType === 3) text += c.nodeValue;
+    text = text.replace(/\s+/g, " ").trim();
+    if (text) {
+      const fam = firstFamily(cs.fontFamily);
+      if (fam) sysFamilies[fam] = (sysFamilies[fam] || 0) + text.length;
+    }
+    if (tag !== "main" && tag !== "body" && tag !== "html") {
+      const r = el.getBoundingClientRect();
+      const bg = parseColor(cs.backgroundColor);
+      const bw = parseFloat(cs.borderTopWidth);
+      const hasBorder = bw >= 0.5 && parseColor(cs.borderTopColor)[3] > 0.05;
+      if (r.width >= 240 && r.height >= 120 && (bg[3] > 0.04 || hasBorder)) {
+        const key = `${Math.round(parseFloat(cs.borderTopLeftRadius))}|${bg[3] > 0.04 ? rgbHexIn(blend(bg, fpPage.concat(1))) : "none"}|${hasBorder ? rgbHexIn(blend(parseColor(cs.borderTopColor), fpPage.concat(1))) : "none"}`;
+        sysPanels.set(key, (sysPanels.get(key) || 0) + r.width * r.height);
+      }
+    }
+  }
+  const topPanel = [...sysPanels.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]?.split("|") ?? null;
+  const system = {
+    families: sysFamilies,
+    h1: sysH1,
+    h2: sysH2,
+    charts: sysCharts,
+    panel: topPanel ? { radius: Number(topPanel[0]), bg: topPanel[1], border: topPanel[2] } : null,
+  };
+
   const fingerprint = {
+    system,
     page: fpPage,
     ink: fpInk,
     line: fpLine,
@@ -1295,7 +1386,7 @@ export async function fingerprintPages(targets, { width = 1440, theme = "light" 
   try {
     await browser.ready();
     for (const t of targets) {
-      const url = t.kind === "url" ? t.url : fileToUrl(srv.baseUrl, serveRoot, t.file);
+      const url = t.kind === "url" ? t.url : fileToUrl(srv.baseUrl, serveRoot, t.file) + (t.hash ?? "");
       const { fingerprint } = await auditTarget(browser, url, t.label ?? t.id, [width], null, theme);
       if (fingerprint) out.set(t.id, fingerprint);
     }

@@ -100,7 +100,7 @@ export function studyPrompts(brief, n, refs, { page = "product", assets = false,
   );
 }
 
-function runAgent({ dir, prompt, agent, model, timeoutMs }) {
+export function runAgent({ dir, prompt, agent, model, timeoutMs }) {
   return new Promise((resolve) => {
     const log = fs.openSync(path.join(dir, "agent.log"), "w");
     const child = agent
@@ -158,6 +158,8 @@ function report({ brief, out, ranked, runs, refs }) {
 }
 
 export async function run(argv = process.argv.slice(2)) {
+  // A product of several screens is built system first: src/product.mjs
+  if (argv.includes("--product") || argv.includes("--resume")) return (await import("./product.mjs")).run(argv);
   const { positional, flags } = parseArgs(argv);
   const valueOf = (name) => {
     const i = argv.indexOf(`--${name}`);

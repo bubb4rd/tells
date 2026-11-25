@@ -73,7 +73,7 @@ const RULES = [
   { id: "pill-radius", category: "components", severity: "error", fix: "No pills or capsules. Use the system's own radius." },
   { id: "glass", category: "components", severity: "error", fix: "No backdrop-filter except over real content (menus, overlays)." },
   { id: "emoji-sparkle", category: "components", severity: "error", fix: "No emoji or sparkle icons. One consistent icon set, or none." },
-  { id: "side-tab", category: "components", severity: "error", fix: "No coloured left-border callouts. Use spacing, typography or the system's own surface hierarchy." },
+  { id: "side-tab", category: "components", severity: "error", fix: "No coloured left-border stripe on a callout or an active item (as a border or an inset shadow). Use spacing, typography or the system's own surface hierarchy." },
   // layout
   { id: "numbered-section", category: "layout", severity: "warn", fix: "Numbered sections (\"01 / PALETTE\") are bento-by-default. Let content order carry the sequence." },
   // decoration
@@ -96,11 +96,13 @@ const OTHER_TOOL_RULES = new Set([
   "icon-feature-grid", "stat-strip", "template-hero-stack", "word-only-screen",
   "low-contrast", "accent-rainbow", "tiny-text", "long-measure",
   "flat-type-hierarchy", "missing-tabular-nums", "mono-costume", "eyebrow-label", "small-tap-target",
-  "concentric-radius", "split-surface", "nested-cards", "broken-image",
+  "concentric-radius", "split-surface", "segmented-thumb", "nested-cards", "broken-image",
   "duplicate-avatar", "skipped-heading", "missing-focus-ring",
   // same
   "cluster-warm-paper", "cluster-acid-dark", "cluster-neo-swiss", "cluster-glow-void",
   "cluster-soft-commerce", "house-style", "token-copy",
+  // consistent
+  "drift-typeface", "drift-heading", "drift-page", "drift-panel", "drift-chart", "drift-shell", "drift-accent",
 ]);
 
 const DEFAULT_FONTS = [
@@ -581,6 +583,9 @@ function detectCodeLines(ctx) {
       ctx.emit("side-tab", i, m.index, `${m[1]}px left border`);
     } else if ((m = /\bborder-[ls]-(?:[248]|\[(\d+)px\])\b/.exec(line)) && (!m[1] || +m[1] >= 2)) {
       ctx.emit("side-tab", i, m.index, m[0]);
+    } else if ((m = /box-shadow\s*:\s*inset\s+([2-9]|1\d)px\s+0(?:px)?\s+0(?:px)?\s+(?!transparent|rgba\(0,\s*0,\s*0,\s*0\))\S/i.exec(line))) {
+      // the same stripe drawn with a shadow: box-shadow: inset 2px 0 0 var(--accent)
+      ctx.emit("side-tab", i, m.index, `${m[1]}px inset shadow stripe`);
     }
     // bounce / overshoot easing
     for (const cb of line.matchAll(/cubic-bezier\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\)/gi)) {
