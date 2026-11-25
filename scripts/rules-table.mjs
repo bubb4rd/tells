@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// Rewrites the rule tables in README.md between the <!-- rules:check --> / <!-- rules:render --> markers.
+// Rewrites the rule tables in README.md between the <!-- rules:<command> --> markers, and the rule count in each table's summary.
 import fs from "node:fs";
 import { RULES as CHECK } from "../src/check.mjs";
 import { RULES as RENDER } from "../src/render.mjs";
 import { FIXABLE } from "../src/fix.mjs";
 import { RULES as SAME } from "../src/same.mjs";
+import { RULES as CONSISTENT } from "../src/consistent.mjs";
 
 const cell = (s) => s.replace(/\|/g, "\\|");
 const table = (rules, auto) =>
@@ -16,10 +17,11 @@ const table = (rules, auto) =>
 
 const file = new URL("../README.md", import.meta.url);
 let md = fs.readFileSync(file, "utf8");
-for (const [key, rules] of [["check", CHECK], ["render", RENDER], ["same", SAME]]) {
+for (const [key, rules] of [["check", CHECK], ["render", RENDER], ["same", SAME], ["consistent", CONSISTENT]]) {
   const re = new RegExp(`(<!-- rules:${key} -->)[\\s\\S]*?(<!-- /rules:${key} -->)`);
   if (!re.test(md)) throw new Error(`README is missing the rules:${key} markers`);
   md = md.replace(re, `$1\n${table(rules, key === "check")}\n$2`);
+  md = md.replace(new RegExp(`(<b><code>tells ${key}</code></b>: )\\d+( rules?)`), `$1${rules.length}$2`);
 }
 if (process.argv.includes("--check")) {
   if (md !== fs.readFileSync(file, "utf8")) {

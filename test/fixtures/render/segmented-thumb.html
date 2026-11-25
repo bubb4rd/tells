@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orders</title>
+<style>
+  body { margin: 0; padding: 32px; background: #f4f3ef; color: #1b1a17; font: 15px/1.5 Georgia, serif; }
+  .seg { display: inline-flex; gap: 2px; padding: 2px; background: #e4e2dc; border-radius: 6px; }
+  .seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 4px; font: inherit; color: #4a4843; }
+  .seg button[aria-pressed="true"] { background: #fbfaf7; color: #1b1a17; box-shadow: 0 1px 0 #d2cfc6; }
+</style>
+</head>
+<body>
+  <main>
+    <h1>Orders</h1>
+    <div class="seg" role="group" aria-label="Status">
+      <button type="button" aria-pressed="true">Open 14</button>
+      <button type="button" aria-pressed="false">Placed 6</button>
+      <button type="button" aria-pressed="false">Paid 4</button>
+    </div>
+    <p>Fourteen wholesale orders are open, six of them placed today by cafés in the city.</p>
+  </main>
+</body>
+</html>

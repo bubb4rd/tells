@@ -30,16 +30,18 @@
   <a href="#faq">FAQ</a>
 </p>
 
-<p align="center"><img src="docs/assets/hero.png" alt="Two versions of a bike shop's booking screen. On the left, default output: a dark panel with a purple glow, a tracked uppercase eyebrow, a gradient headline with an italic accent word and a sparkle emoji, a pill button reading Get started with an arrow, a Fast, Secure, Simple tagline and three glass cards. Each one is circled in red pencil and labelled with the tells rule that catches it. On the right, the same screen built from its subject: the shop's name and street, a plain serif headline, Book a repair, the turnaround, three prices, a Book a drop-off slot button and the next free slot."></p>
+<p align="center"><img src="docs/assets/hero.png" alt="One brief, a repair desk screen for a bike shop's staff, built three ways. Default output, a dark purple screen with a gradient headline and glass cards, is struck through in red pencil: check finds gradient-text, glass and 11 more, and same calls it cluster-glow-void. The build from taste-skill, a beige three-pane app in navy, is struck through too: check finds side-tab, and render finds nested-cards and low-contrast. The screen built with tells breaks no rules and is shown large: Spoke and Chain&#39;s repair desk, with a stand schedule for three mechanics, all fourteen bikes on the floor with job, mechanic, status and due time, quotes waiting on customers, and parts due in."></p>
 
 A tell is the mark that gives a screen away as default output: the uppercase eyebrow over every heading, the purple gradient, the pill buttons, the three cards with icons in tinted squares, "Get started →". tells names them, catches the ones a machine can catch, and rewrites the ones with a single correct fix.
 
 - **A rule set** ([`rules/anti-slop.md`](rules/anti-slop.md)) that names each tell and says what to do instead.
-- **Two linters.** `tells check` reads HTML, CSS, JSX, TSX and MDX source, and scripts that build HTML in strings. `tells render` loads pages in headless Chrome and checks contrast, overflow, tap targets, headings and images.
+- **Two linters.** `tells check` reads HTML, CSS, JSX, TSX and MDX source, and scripts that build HTML in strings. `tells render` loads pages in headless Chrome and checks contrast, overflow, tap targets, headings and images, and the layouts that give a screen away: eyebrow labels, stat strips, cards inside cards.
 - **A fixer.** `tells fix` rewrites the hits that don't depend on the subject and reports the rest.
 - **A loop with no picks.** `tells make` builds several variants of a brief in parallel with an agent, fixes them, and chooses one with `tells pick`, by checks and not by a taste score. Give it a reference screen and each agent studies that screen's finish before it builds.
+- **Products, not just screens.** `tells make --product` builds a product's system first, stops once for you to approve it, then builds every screen on it. `tells consistent` checks that the screens still read as one system.
 - **A reference library.** `tells refs` keeps the shipped screens whose finish you want to reach, each with why it's good. Choosing them is how your taste gets in.
 - **A sameness check.** `tells same` catches a design that lands on one of the five cliché looks, on your own house style, or on a copy of a sibling.
+- **Numbers for taste.** `tells measure` profiles a rendered screen (what leads it and how big, how much the first screen holds, how many sizes and colours carry it) so you can compare it with shipped work.
 - **A playbook** ([`playbook/`](playbook)) for building a design system from a subject, reviewing it, and measuring taste.
 
 It's built for product UI, the dashboards, tools and apps people use every day, and it runs on plain Node with no dependencies.
@@ -77,8 +79,9 @@ tells same   [designs|urls...] Catch a design that lands on a cliché cluster, y
 tells pick   <variants...>     Choose between variants with checks: errors, exceptions, sameness, warnings
 tells make   "<brief>"         Build variants in parallel with an agent, fix them, pick one, write a report
 tells measure [files|urls...]  Profile a rendered screen: lead, density, type steps, alignment
+tells consistent [screens...]  Check that a product's screens read as one system
 tells refs   [add|remove]      Your library of reference screens for make --reference
-tells rules  [check|render|same] List every rule with its severity and fix
+tells rules  [check|render|same|consistent] List every rule with its severity and fix
 
 --json          Machine-readable output
 --strict        Fail on warnings as well as errors
@@ -95,11 +98,16 @@ tells rules  [check|render|same] List every rule with its severity and fix
 --current <png> make: a screenshot of the page being redesigned
 --style         make: take the look from the reference too, not only its finish
 --variants <n>  make: how many to build (default 4)
+--product       make: several screens on one system; stops for you to approve the system (with --screens)
+--screens <s>   make --product: "<id>: <job>; <id>: <job>; …", the first two are the lead screens
+--resume <out>  make: continue a --product run; --approve <v> picks its system
+--concurrency n make --product: screen agents at a time (default 3)
 --shots <dir>   measure: save a 1440×900 screenshot of each page
 --full          measure, refs add: screenshot the whole page, up to 4,000px
 --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
 --no-render     same, pick, make: skip the headless Chrome checks
---theme <t>     render, same, measure: light (default) or dark, whatever the machine is set to
+--lead <file>   consistent: the approved screens that define the system (repeatable)
+--theme <t>     render, same, measure, consistent: light (default) or dark, whatever the machine is set to
 --widths a,b,c  Viewport widths for render
 ```
 
@@ -109,21 +117,20 @@ A `.js`, `.mjs` or `.ts` file is checked when it builds UI: JSX, or at least fiv
 
 Headless Chrome follows the machine's appearance, so a Mac in dark mode would audit every page's dark theme. Rendered commands pin `prefers-color-scheme: light`; pass `--theme dark` to audit the dark theme. `same` reads tokens the same way: a product's dark-theme block doesn't count against its light design.
 
-Here is `tells fix` on the left half of the picture above ([`docs/shots/hero.html`](docs/shots/hero.html)), with long snippets shortened:
+Here is `tells fix` on the default output in the picture above ([`docs/shots/hero/default.html`](docs/shots/hero/default.html)), with long snippets shortened:
 
 ```
 Fixed  2 changes
-  hero.html:26  pill-radius   .pill { … border-radius: 6px; background: #7c3aed; … }
-  hero.html:57  arrow-suffix  <span class="pill" …>Get started</span>
+  default.html:21  pill-radius   .pill { … border-radius: 6px; background: var(--violet); … }
+  default.html:34  arrow-suffix  <span class="pill">Get started</span>
 
-hero.html  10 error, 3 warn
-  hero.html:12  [warn]  default-font    (Inter, 2 lines) …family=Inter:wght@400;700…
-  hero.html:20  [error] glow-blur       (blur 60px) …radial-gradient(circle, #8b5cf6, transparent 70%); filter: blur(60px); }
-  hero.html:21  [warn]  tracked-caps    (.eyebrow) …letter-spacing: 0.18em; text-transform: uppercase; …
-  hero.html:24  [error] gradient-text   …-webkit-background-clip: text; background-clip: text; color: transparent; }
-  hero.html:55  [error] italic-accent   Bike repair, reimagined ✨
-  hero.html:57  [error] generic-cta     Get started
-  hero.html:58  [error] dot-triplet     Fast · Secure · Simple
+default.html  10 error, 3 warn
+  default.html:9   [warn]  default-font    (Inter, 2 lines) …family=Inter:wght@400;700…
+  default.html:15  [error] glow-blur       (blur 80px) …radial-gradient(circle, #8b5cf6, transparent 70%); filter: blur(80px); }
+  default.html:17  [warn]  tracked-caps    (.eyebrow) …letter-spacing: 0.18em; text-transform: uppercase; …
+  default.html:19  [error] gradient-text   …-webkit-background-clip: text; background-clip: text; color: transparent; }
+  default.html:32  [error] italic-accent   Repairs, reimagined ✨
+  default.html:34  [error] generic-cta     Get started
   …
 ```
 
@@ -209,6 +216,25 @@ tells make "a shift handover screen for night nurses on a hospital ward" --refer
 
 References change the result more than any rule did. On a night-nurse handover brief with GitHub's issue list as the reference, a different subject, the study variants came out as ward tools: patients sorted by deterioration score, flags as small chips, about 160 items on the first screen. The angle variants led with a 152px "3" on pale paper and held 51 to 105 ([`taste.md`](playbook/taste.md#learn-finish-from-a-reference)).
 
+### Products
+
+A product of several screens built as separate briefs comes out stitched: every screen passes, and the fonts, panels, charts and spacing drift apart. `--product` builds the system first and decides taste once:
+
+```sh
+tells make "a coffee roaster's back office" --product --reference plausible \
+  --screens "today: what to roast and ship today; orders: wholesale orders, placed to paid; roasts: …; inventory: …"
+tells make --resume tells-make/<run> --approve v1
+```
+
+1. **System.** Each variant (two by default) builds the whole product's system: tokens, every part, one chart style, a shell drawn by one script, a store shared across pages, one world of sample facts for every screen, the contracts for shared state (`CONTRACTS.md`), the rules for later builders (`SYSTEM.md`), and the first two screens. Then it stops, and `CHECKPOINT.md` shows each variant's lead screens.
+2. **You approve one.** `--resume <run> --approve <v>`.
+3. **Screens.** One agent per remaining screen, `--concurrency` at a time, each in its own copy of the approved product. Only the files it owns come back; parts it had to build outside the system are written down for the review.
+4. **Review.** `tells consistent`, `check` and `render` across the screens, then one agent folds the needs into the system, fixes drift and walks the contracts. `REPORT.md` has the before and after.
+
+A run stopped by a limit resumes with `--resume <run>`: finished screens are kept and failed ones run again.
+
+`tells consistent <screens…>` is the check behind step 4, and it works on its own. Inside one product, sameness is the point, so it renders every screen and flags the one whose typeface, heading sizes, page colour, panel, chart mark, shell or accent differ from the system: what most screens share, or what the screens named with `--lead` share. Routes of a single-page app work as `index.html#/inbox`. On one ten-screen product, it failed the six pages built as separate briefs (two page colours, two panel surfaces and two h1 sizes, though every page shared the typeface) and passed the version built on one shared library.
+
 ### References
 
 ```sh
@@ -261,7 +287,7 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 | `pill-radius` | error | components | yes | No pills or capsules. Use the system's own radius. |
 | `glass` | error | components |  | No backdrop-filter except over real content (menus, overlays). |
 | `emoji-sparkle` | error | components |  | No emoji or sparkle icons. One consistent icon set, or none. |
-| `side-tab` | error | components |  | No coloured left-border callouts. Use spacing, typography or the system's own surface hierarchy. |
+| `side-tab` | error | components |  | No coloured left-border stripe on a callout or an active item (as a border or an inset shadow). Use spacing, typography or the system's own surface hierarchy. |
 | `numbered-section` | warn | layout |  | Numbered sections ("01 / PALETTE") are bento-by-default. Let content order carry the sequence. |
 | `glow-blur` | error | decoration |  | Remove blurred blobs, orbs and radial glows. |
 | `ambient-motion` | error | motion |  | No ambient looping motion. One purposeful transition tied to a user action, gated by prefers-reduced-motion. |
@@ -275,7 +301,7 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 </details>
 
 <details>
-<summary><b><code>tells render</code></b>: 23 rules on the rendered page</summary>
+<summary><b><code>tells render</code></b>: 25 rules on the rendered page</summary>
 
 <!-- rules:render -->
 | Rule | Severity | Category | Fix |
@@ -299,6 +325,7 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 | `small-tap-target` | warn | mobile | Make mobile interactive controls at least 44x44px (or expand their hit area). |
 | `concentric-radius` | warn | surfaces | Match concentric radii on tightly inset surfaces (outerRadius = innerRadius + padding + borderWidth). |
 | `split-surface` | error | surfaces | Keep primary navigation and canvas on cohesive surfaces; avoid pairing a dark sidebar with a light page. |
+| `segmented-thumb` | error | surfaces | No raised pill on a grey track for tabs or filters. Mark the chosen option with ink and weight, or a line on the edge it sits on, in the same language as the rest of the screen. |
 | `nested-cards` | error | surfaces | Avoid cards inside cards. Use spacing, typography or a single surface level instead of nested boxes. |
 | `broken-image` | error | media | Fix broken image asset (naturalWidth === 0). |
 | `duplicate-avatar` | error | media | Never reuse the same portrait/avatar image for two different people or duplicate the signed-in user avatar. |
@@ -322,6 +349,23 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 | `house-style` | error | This matches your house style: the look most of your other designs share, or the design named with --house. Derive it from this subject, or write why this subject earns it. |
 | `token-copy` | error | Six or more colour tokens copied from a sibling. Every colour needs an origin in this subject. |
 <!-- /rules:same -->
+
+</details>
+
+<details>
+<summary><b><code>tells consistent</code></b>: 7 rules across a product's screens</summary>
+
+<!-- rules:consistent -->
+| Rule | Severity | Fix |
+|---|---|---|
+| `drift-typeface` | error | Use the system's typefaces. A product gets one family for text and numbers, at most one more for display. |
+| `drift-heading` | warn | Use the system's heading sizes; the same level is the same size on every screen. |
+| `drift-page` | error | Every screen sits on the same page colour. |
+| `drift-panel` | error | Use the system's panel: same radius, surface and line on every screen. |
+| `drift-chart` | error | One chart mark across the product. Draw this trend with the system's mark. |
+| `drift-shell` | error | Every screen sits in the same shell (navigation and layout). |
+| `drift-accent` | warn | This screen brings in a colour the system doesn't use. Use the system's accent, or the system's status colours. |
+<!-- /rules:consistent -->
 
 </details>
 

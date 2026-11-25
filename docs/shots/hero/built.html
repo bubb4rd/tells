@@ -1,0 +1,143 @@
+<!doctype html>
+<!-- Hero specimen: hand-built to the rule set, then checked. Clean on check, render, same and pick. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Repair desk, Spoke and Chain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&display=block">
+<style>
+  /* Park Tool blue: the colour of the tool wall behind the stands. */
+  :root {
+    --page: #eef0f2; --panel: #ffffff; --line: #d9dde2; --ink: #1b1f24; --muted: #59626d;
+    --tool: #1d5fae; --tool-ink: #ffffff; --ready: #20703f; --ready-bg: #e3f1e7; --wait: #8a5a00; --wait-bg: #fbf0d9;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--page); color: var(--ink); font: 400 15px/1.4 "Barlow", sans-serif; font-variant-numeric: tabular-nums; }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; }
+
+  .top { display: flex; align-items: center; gap: 24px; padding: 0 24px; height: 52px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .shop { font-weight: 600; font-size: 16px; }
+  .shop span { font-weight: 400; color: var(--muted); }
+  nav { display: flex; gap: 4px; }
+  nav a { padding: 8px 10px; border-radius: 5px; color: var(--muted); }
+  nav a[aria-current] { color: var(--ink); background: var(--page); font-weight: 500; }
+  .top .act { margin-left: auto; }
+  .btn { padding: 9px 14px; border: 0; border-radius: 5px; background: var(--tool); color: var(--tool-ink); font-weight: 600; cursor: pointer; }
+
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: 20px; padding: 20px 24px 24px; }
+  h1 { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.2; }
+  .sub { margin: 2px 0 14px; color: var(--muted); }
+  h2 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 12px 14px; }
+  .panel + .panel { margin-top: 14px; }
+
+  .stands { display: grid; grid-template-columns: 44px 1fr; row-gap: 6px; align-items: center; font-size: 13px; }
+  .lane { display: block; width: 100%; height: 20px; overflow: visible; }
+  .lane .bg { fill: var(--page); }
+  .lane .job { fill: #c9dbf1; }
+  .lane .job.done { fill: #dfe3e8; }
+  .lane text { font: 400 12px "Barlow", sans-serif; fill: #123b6c; dominant-baseline: central; paint-order: stroke; stroke: #c9dbf1; stroke-width: 4px; stroke-linejoin: round; }
+  .lane text.done { fill: var(--muted); stroke: #dfe3e8; }
+  .lane .now { fill: var(--tool); }
+  .hours { grid-column: 2; display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-weight: 500; color: var(--muted); font-size: 13px; padding: 4px 8px 6px 0; border-bottom: 1px solid var(--line); }
+  td { padding: 7px 8px 7px 0; border-bottom: 1px solid #eceef1; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  td.n { color: var(--muted); }
+  .tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .tag.ready { background: var(--ready-bg); color: var(--ready); }
+  .tag.wait { background: var(--wait-bg); color: var(--wait); }
+  .quiet { color: var(--muted); }
+
+  .quote { padding: 8px 0; border-top: 1px solid #eceef1; font-size: 14px; }
+  .quote:first-of-type { border-top: 0; padding-top: 0; }
+  .quote b { font-weight: 600; }
+  .quote .sum { display: flex; justify-content: space-between; }
+  .quote p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+
+  @media (max-width: 760px) {
+    .top { flex-wrap: wrap; height: auto; padding: 10px 16px; gap: 8px 16px; }
+    .top .act { margin-left: 0; }
+    nav a, .btn { min-height: 44px; display: inline-flex; align-items: center; }
+    main { grid-template-columns: 1fr; padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="shop">Spoke and Chain <span>Mill Avenue</span></div>
+  <nav aria-label="Main">
+    <a href="#" aria-current="page">Desk</a>
+    <a href="#">Bookings</a>
+    <a href="#">Parts</a>
+    <a href="#">Customers</a>
+  </nav>
+  <div class="act"><button class="btn" type="button">Check in a bike</button></div>
+</header>
+
+<main>
+  <div>
+    <h1>Repair desk</h1>
+    <p class="sub">Tuesday 25 November. 14 bikes in, 5 due back today.</p>
+
+    <section class="panel" aria-labelledby="stands">
+      <h2 id="stands">Stands today</h2>
+      <div class="stands">
+        <span>Ana</span>
+        <svg class="lane" role="img" aria-label="ticket 409 tune-up; ticket 412 Brompton, gears; ticket 417 fork"><rect class="bg" width="100%" height="20" rx="4"/><rect class="job done" x="0%" width="22%" height="20" rx="4"/><rect class="job" x="24%" width="40%" height="20" rx="4"/><rect class="job" x="68%" width="24%" height="20" rx="4"/><rect class="now" x="52%" y="-4" width="2" height="28"/><text class="done" x="0.9%" y="10">#409 tune-up</text><text x="24.9%" y="10">#412 Brompton, gears</text><text x="68.9%" y="10">#417 fork</text></svg>
+        <span>Theo</span>
+        <svg class="lane" role="img" aria-label="ticket 413 flat; ticket 418 bottom bracket"><rect class="bg" width="100%" height="20" rx="4"/><rect class="job done" x="0%" width="14%" height="20" rx="4"/><rect class="job" x="30%" width="46%" height="20" rx="4"/><rect class="now" x="52%" y="-4" width="2" height="28"/><text class="done" x="0.9%" y="10">#413 flat</text><text x="30.9%" y="10">#418 bottom bracket</text></svg>
+        <span>Mo</span>
+        <svg class="lane" role="img" aria-label="ticket 410 wheel true; ticket 415 brake bleed"><rect class="bg" width="100%" height="20" rx="4"/><rect class="job done" x="6%" width="30%" height="20" rx="4"/><rect class="job" x="44%" width="34%" height="20" rx="4"/><rect class="now" x="52%" y="-4" width="2" height="28"/><text class="done" x="6.9%" y="10">#410 wheel true</text><text x="44.9%" y="10">#415 brake bleed</text></svg>
+        <div class="hours"><span>9</span><span>11</span><span>13</span><span>15</span><span>17</span></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="floor">
+      <h2 id="floor">On the floor</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Ticket</th><th>Bike</th><th>Job</th><th>Mechanic</th><th>Status</th><th>Due back</th></tr></thead>
+          <tbody>
+            <tr><td class="n">412</td><td>Brompton M6L</td><td>Gear cable</td><td>Ana</td><td>On the stand</td><td>15:00</td></tr>
+            <tr><td class="n">413</td><td>Trek FX 3</td><td>Rear tube</td><td>Theo</td><td><span class="tag ready">Ready</span></td><td>12:00</td></tr>
+            <tr><td class="n">414</td><td>Urban Arrow</td><td>Chainring, chain</td><td class="quiet">None yet</td><td>Quote sent</td><td>Thu</td></tr>
+            <tr><td class="n">415</td><td>Allez Sport</td><td>Brake bleed</td><td>Mo</td><td>On the stand</td><td>17:30</td></tr>
+            <tr><td class="n">416</td><td>Raleigh Pioneer</td><td>Tune-up</td><td class="quiet">None yet</td><td><span class="tag wait">Waiting on parts</span></td><td>Fri</td></tr>
+            <tr><td class="n">417</td><td>Giant Talon 2</td><td>Fork service</td><td>Ana</td><td>Queued</td><td>17:00</td></tr>
+            <tr><td class="n">418</td><td>Topstone 105</td><td>Bottom bracket</td><td>Theo</td><td>On the stand</td><td>Wed</td></tr>
+            <tr><td class="n">419</td><td>Dawes Galaxy</td><td>Rear wheel rebuild</td><td class="quiet">None yet</td><td>Quote sent</td><td>Mon</td></tr>
+            <tr><td class="n">420</td><td>Tern GSD</td><td>Brake pads</td><td>Mo</td><td>Queued</td><td>16:30</td></tr>
+            <tr><td class="n">421</td><td>Ribble CGR</td><td>Headset service</td><td class="quiet">None yet</td><td>Queued</td><td>Thu</td></tr>
+            <tr><td class="n">422</td><td>Cube Kathmandu</td><td>Hub service</td><td class="quiet">None yet</td><td>Queued</td><td>Thu</td></tr>
+            <tr><td class="n">423</td><td>Pashley Britannia</td><td>Dynamo wiring</td><td>Theo</td><td>Queued</td><td>Fri</td></tr>
+            <tr><td class="n">424</td><td>Orbea Orca</td><td>Di2 fault</td><td class="quiet">None yet</td><td>Booked in</td><td>Fri</td></tr>
+            <tr><td class="n">425</td><td>Islabikes Beinn</td><td>Tune-up</td><td>Mo</td><td>Queued</td><td>Wed</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <aside>
+    <section class="panel" aria-labelledby="quotes">
+      <h2 id="quotes">Waiting on the customer</h2>
+      <div class="quote"><div class="sum"><b>#414 Urban Arrow</b><span>$86</span></div><p>Chainring, chain and labour. Sent 11:20 to M. Haddad.</p></div>
+      <div class="quote"><div class="sum"><b>#419 Dawes Galaxy</b><span>$142</span></div><p>Rear wheel rebuild. Sent yesterday to S. Byrne.</p></div>
+    </section>
+    <section class="panel" aria-labelledby="parts">
+      <h2 id="parts">Parts due in</h2>
+      <div class="quote"><div class="sum"><b>KMC X9 chain</b><span>Fri</span></div><p>For #416, from Madison.</p></div>
+      <div class="quote"><div class="sum"><b>Shimano BR-R7170</b><span>Mon</span></div><p>Stock, two pairs.</p></div>
+    </section>
+  </aside>
+</main>
+</body>
+</html>
