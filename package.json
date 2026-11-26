@@ -1,6 +1,6 @@
 {
   "name": "tells",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Find the marks of default, AI-generated UI: a rule set, two linters and a fixer.",
   "type": "module",
   "private": true,
