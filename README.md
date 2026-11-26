@@ -316,7 +316,7 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 </details>
 
 <details>
-<summary><b><code>tells render</code></b>: 26 rules on the rendered page</summary>
+<summary><b><code>tells render</code></b>: 28 rules on the rendered page</summary>
 
 <!-- rules:render -->
 | Rule | Severity | Category | Fix |
@@ -325,6 +325,7 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 | `clipped-text` | warn | layout | Prevent text clipping or descender cut-off inside overflow:hidden containers (check wrapping, width, and line-height). |
 | `cramped-padding` | warn | layout | Give bordered/surface containers at least 8px padding on non-zero sides. |
 | `off-centre-label` | warn | layout | Centre a control's one-line label in its height (align-items: center, or equal padding); text stuck to one edge reads as cut off. |
+| `squashed-block` | warn | layout | Stop a fixed-size block shrinking when its column runs out of room in a short window: give it flex: none (or flex-shrink: 0), and let one region of the column scroll instead. |
 | `tall-top-nav` | warn | layout | Keep desktop top navigation on a single line and <= 80px tall. |
 | `icon-feature-grid` | error | layout | Replace the 3–4 card icon-on-top feature grid with real product proof, a table, or copy that fits the subject. |
 | `stat-strip` | warn | layout | Replace the row of identical big-number + tiny-label stat blocks with one focal number and the context or chart that explains it. |
@@ -340,6 +341,7 @@ tells measure ./dist/index.html https://plausible.io/plausible.io --shots shots/
 | `mono-costume` | warn | type | Reserve monospace for code, tabular figures, and copyable values (IDs, hex, paths), not prose or uppercase labels. |
 | `small-tap-target` | warn | mobile | Make mobile interactive controls at least 44x44px (or expand their hit area). |
 | `concentric-radius` | warn | surfaces | Match concentric radii on tightly inset surfaces (outerRadius = innerRadius + padding + borderWidth). |
+| `gradient-edge` | warn | surfaces | Paint the gradient under the border too (background-origin: border-box, or `background: <gradient> border-box`). From the padding box it repeats into a transparent border, and its far end shows as a strip down the edge. |
 | `split-surface` | error | surfaces | Keep primary navigation and canvas on cohesive surfaces; avoid pairing a dark sidebar with a light page. |
 | `segmented-thumb` | error | surfaces | No raised pill on a grey track for tabs or filters. Mark the chosen option with ink and weight, or a line on the edge it sits on, in the same language as the rest of the screen. |
 | `nested-cards` | error | surfaces | Avoid cards inside cards. Use spacing, typography or a single surface level instead of nested boxes. |

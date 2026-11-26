@@ -92,11 +92,11 @@ const RULE_BY_ID = new Map(RULES.map((r) => [r.id, r]));
 // Rule IDs owned by render, same, consistent and click, so `tells-ok` for them isn't flagged as ok-unknown.
 const OTHER_TOOL_RULES = new Set([
   // render
-  "horizontal-overflow", "clipped-text", "cramped-padding", "off-centre-label", "tall-top-nav",
+  "horizontal-overflow", "clipped-text", "cramped-padding", "off-centre-label", "squashed-block", "tall-top-nav",
   "icon-feature-grid", "stat-strip", "template-hero-stack", "word-only-screen",
   "low-contrast", "accent-rainbow", "tiny-text", "long-measure",
   "flat-type-hierarchy", "missing-tabular-nums", "mono-costume", "eyebrow-label", "small-tap-target",
-  "concentric-radius", "split-surface", "segmented-thumb", "nested-cards", "broken-image",
+  "concentric-radius", "gradient-edge", "split-surface", "segmented-thumb", "nested-cards", "broken-image",
   "duplicate-avatar", "skipped-heading", "missing-focus-ring",
   // same
   "cluster-warm-paper", "cluster-acid-dark", "cluster-neo-swiss", "cluster-glow-void",
