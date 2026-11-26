@@ -32,6 +32,7 @@ import { display, makePaint, parseArgs } from "./check.mjs";
 import { resolveReferences } from "./references.mjs";
 import { costLine, runAgent } from "./make.mjs";
 import { intFlag } from "./cli.mjs";
+import { parseWidths } from "./render.mjs";
 import { copyProduct, discoverScreens, briefFrom, hasDarkTheme, readTokens, restoreExcept, INGEST_DOCS } from "./ingest.mjs";
 import { listedTokens, roundText, tokenViolations, traitViolations, newHits, diffShots } from "./guard.mjs";
 
@@ -150,13 +151,45 @@ function copyTree(from, to, skip = () => false) {
   }
 }
 
+/** The widths a folder's own .tellsrc names, or null. */
+function widthsOf(dir) {
+  try {
+    const w = JSON.parse(fs.readFileSync(path.join(dir, ".tellsrc"), "utf8")).widths;
+    return Array.isArray(w) && w.length ? w : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Writes the widths the product is for into a folder's .tellsrc, keeping what else is there, so the agents' own
+ * `render --strict` runs check the same widths the pipeline does. Called again after each agent, which may rewrite it.
+ */
+export function writeWidths(dir, widths) {
+  if (!widths?.length || !fs.existsSync(dir)) return;
+  const rc = path.join(dir, ".tellsrc");
+  let raw = {};
+  try {
+    raw = JSON.parse(fs.readFileSync(rc, "utf8"));
+  } catch {
+    if (fs.existsSync(rc)) return; // not JSON: quarantineAllow sets it aside; don't write over it
+  }
+  if (JSON.stringify(raw.widths) === JSON.stringify(widths)) return;
+  fs.writeFileSync(rc, JSON.stringify({ ...raw, widths }, null, 2) + "\n");
+}
+
+// What a screen agent doesn't need from the product: the lead stage's working notes, logs and screenshots.
+// It reads SYSTEM.md, CONTRACTS.md, NOTES.md, system/, data/, screens/ and system-shots/.
+const NOT_FOR_SCREENS = new Set(["work", "CRITIQUE.md", "REVISION.md", "STUDY.md", "REVIEW-INPUT.md", "REVIEW.md", "POLISH.md", "FIXES.md", "PROMPT.md", "agent.log", "agent.jsonl", "shots", "rounds", "baseline"]);
+
 /** Checks one product folder: consistent across screens, check and render, as counts and hits. */
 function audit(dir, state) {
   const targets = targetsOf(state);
   const leads = leadsOf(state).filter((f) => fs.existsSync(path.join(dir, f.split("#")[0])));
   const cons = tells(["consistent", ...targets, ...leads.flatMap((l) => ["--lead", l]), "--json"], dir);
   const chk = tells(["check", ".", "--json"], dir);
-  const ren = tells(["render", ...targets, "--json", "--widths", "1440,390"], dir);
+  // The widths the product's .tellsrc says it's for, else a laptop and a phone.
+  const ren = tells(["render", ...targets, "--json", ...(widthsOf(dir) ? [] : ["--widths", "1440,390"])], dir);
   const clk = tells(["click", ...targets, "--json"], dir);
   const count = (hits, sev) => (hits ?? []).filter((h) => h.severity === sev).length;
   return {
@@ -255,6 +288,28 @@ async function shotChanges(out, state, n) {
 }
 
 /** The built product sent back with a person's notes: one agent, every screen, causes fixed in the system. */
+
+const TOOLS = ["consistent", "check", "render", "click"];
+
+/** The errors one audit found, a line each, for the fix agent and CHECKPOINT.md. Warnings aren't listed. */
+export function errorLines(a) {
+  return TOOLS.flatMap((tool) =>
+    (a[tool]?.hits ?? []).filter((h) => h.severity === "error").map((h) => `- ${tool}: ${h.target ?? h.file}${h.line ? `:${h.line}` : ""} \`${h.rule}\` ${String(h.detail ?? h.snippet ?? "").trim()}`.trimEnd()),
+  );
+}
+
+/** Errors a fix agent can act on: a tool that didn't run isn't one. */
+const hasErrors = (a) => TOOLS.some((tool) => a[tool] && !a[tool].error && a[tool].errors > 0);
+
+export function fixPrompt(state, a) {
+  return fill(read("make.fix.md"), {
+    brief: state.brief,
+    hits: errorLines(a).join("\n"),
+    lead1: state.screens[0].id,
+    lead2: state.screens[1].id,
+    tells: TELLS,
+  });
+}
 
 export function revisePrompt(state, notes) {
   return fill(read("make.revise.md"), {
@@ -407,7 +462,7 @@ function costLines(state) {
   const keys = Object.keys(state.runs ?? {});
   const stages = [
     ["Taken in", runsOf(state.ingest?.run)],
-    ["System", [...keys.filter((k) => /^v\d+$/.test(k)).map((k) => state.runs[k]), ...(state.revisions ?? []).map((r) => r.run)]],
+    ["System", [...keys.filter((k) => /^v\d+$/.test(k)).map((k) => state.runs[k]), ...(state.revisions ?? []).map((r) => r.run), ...(state.fixes ?? []).map((f) => f.run)]],
     ["Screens", keys.filter((k) => !/^v\d+$/.test(k) && k !== "review").map((k) => state.runs[k])],
     ["Review", [state.runs?.review]],
     ...(state.polishes ?? []).map((p, i) => [`Notes, round ${i + 1}`, [...runsOf(p.run), p.again]]),
@@ -449,24 +504,37 @@ function writeReport(out, state) {
 const part = (name, x) => (x.error ? `${name} didn't run` : `${name} ${x.errors}E/${x.warnings}W`);
 const line = (a) => [part("consistent", a.consistent), part("check", a.check), part("render", a.render), ...(a.click ? [part("click", a.click)] : [])].join(" · ");
 
-/** Re-check each variant's lead screens and write CHECKPOINT.md for the person to pick from. */
-function checkpoint(out, state, variants, { say, paint, only = null }) {
+/** One variant's lead screens as the person will see them: exceptions set aside, fixed, screenshotted, checked. */
+function auditVariant(out, state, v) {
+  const d = path.join(out, v);
+  const set = quarantineAllow(d);
+  if (set) state.proposed = { ...(state.proposed ?? {}), [v]: set };
+  spawnSync(process.execPath, [BIN, "fix", "."], { cwd: d, stdio: "ignore" });
+  tells(["measure", ...state.screens.slice(0, 2).map((s) => `screens/${s.id}.html`), "--shots", "shots", "--json"], d);
+  const a = audit(d, state);
+  state.audits = { ...(state.audits ?? {}), [v]: line(a) };
+  return a;
+}
+
+/** Write CHECKPOINT.md for the person to pick from, re-checking variants that haven't been (or `only`). */
+function checkpoint(out, state, variants, { say, paint, only = null, audited = false }) {
   const rows = [];
   for (const v of variants) {
-    const d = path.join(out, v);
-    if (!only || only === v || !state.audits?.[v]) {
-      const set = quarantineAllow(d);
-      if (set) state.proposed = { ...(state.proposed ?? {}), [v]: set };
-      spawnSync(process.execPath, [BIN, "fix", "."], { cwd: d, stdio: "ignore" });
-      tells(["measure", ...state.screens.slice(0, 2).map((s) => `screens/${s.id}.html`), "--shots", "shots", "--json"], d);
-      state.audits = { ...(state.audits ?? {}), [v]: line(audit(d, state)) };
-    }
+    if (!audited && (!only || only === v || !state.audits?.[v])) auditVariant(out, state, v);
     rows.push({ v, line: state.audits?.[v] ?? "" });
   }
   save(out, state);
   const shot = (v, id) => `${v}/shots/screens_${id}.html.png`;
   const proposed = (v) => state.proposed?.[v] ? [`Set aside: this variant tried to allow ${Object.keys(state.proposed[v]).join(", ")} project-wide (see ${v}/.tellsrc.proposed). It isn't applied unless you move it into .tellsrc.`, ""] : [];
   const revised = (v) => (state.revisions ?? []).filter((r) => r.v === v).length;
+  const fixed = (v) => {
+    const f = (state.fixes ?? []).filter((x) => x.v === v).at(-1);
+    if (!f) return [];
+    return [
+      `Failed its own checks ${f.when === "system" ? "when built" : `after ${f.when}`} (${f.before}); one fix round${fs.existsSync(path.join(out, v, "FIXES.md")) ? `, see [FIXES](${v}/FIXES.md)` : ""}.`,
+      ...(f.left?.length ? ["", `**Still failing:**`, "", ...f.left, ""] : [""]),
+    ];
+  };
   fs.writeFileSync(
     path.join(out, "CHECKPOINT.md"),
     [
@@ -481,6 +549,7 @@ function checkpoint(out, state, variants, { say, paint, only = null }) {
         "",
         `${l}. [NOTES](${v}/NOTES.md), [SYSTEM](${v}/SYSTEM.md), [CONTRACTS](${v}/CONTRACTS.md)`,
         "",
+        ...fixed(v),
         ...proposed(v),
       ]),
       `Approve: \`tells make --resume ${display(out)} --approve <v>\``,
@@ -490,7 +559,8 @@ function checkpoint(out, state, variants, { say, paint, only = null }) {
   );
   say("");
   for (const { v, line: l } of rows) {
-    say(`${paint.bold(v)}  ${paint.dim(l)}`);
+    const left = (state.fixes ?? []).filter((x) => x.v === v).at(-1)?.left?.length;
+    say(`${paint.bold(v)}  ${paint.dim(l)}${left ? paint.red(`  still failing after its fix round`) : ""}`);
     for (const s of state.screens.slice(0, 2)) say(`  ${display(path.join(out, shot(v, s.id)))}`);
     if (state.proposed?.[v]) say(paint.yellow(`  set aside: allow ${Object.keys(state.proposed[v]).join(", ")} (${v}/.tellsrc.proposed)`));
   }
@@ -506,7 +576,7 @@ export const hitSignature = (tool, h) => [tool, h.rule, h.target ?? h.file ?? ""
  * tells make --product --from <dir>: copy the product (the source is never written to), find its screens, and set
  * the run up at the ingest stage. The brief is optional: the entry page's <title>, else the folder's name.
  */
-async function startFrom({ valueOf, positional, flags }) {
+async function startFrom({ valueOf, positional, flags, widths }) {
   const fail = (msg) => {
     console.error(`tells make --from: ${msg}`);
     process.exit(2);
@@ -520,7 +590,7 @@ async function startFrom({ valueOf, positional, flags }) {
     fail(err.message);
   }
   const manifest = found.screens;
-  const values = new Set([valueOf("from"), valueOf("screens"), valueOf("out"), valueOf("agent"), valueOf("model"), valueOf("timeout"), valueOf("approved")].filter(Boolean));
+  const values = new Set([valueOf("from"), valueOf("screens"), valueOf("out"), valueOf("agent"), valueOf("model"), valueOf("timeout"), valueOf("approved"), valueOf("widths")].filter(Boolean));
   const brief = positional.filter((p) => !values.has(p)).join(" ").trim() || briefFrom(source, found.entry);
   let screens = manifest.filter((s) => s.built).map(({ id, job }) => ({ id, job }));
   if (valueOf("screens")) {
@@ -544,10 +614,11 @@ async function startFrom({ valueOf, positional, flags }) {
   const product = path.join(out, "product");
   const skipped = copyProduct(source, product);
   fs.writeFileSync(path.join(product, "screens.json"), JSON.stringify(manifest, null, 2) + "\n");
+  writeWidths(product, widths);
   // The product as it came: what the describing agent's changes are put back to.
   copyProduct(product, path.join(out, "rounds", "0"));
   const state = {
-    origin: "from", source, layout: found.layout, entry: found.entry, brief, screens, manifest, leads, skipped,
+    origin: "from", source, layout: found.layout, entry: found.entry, brief, screens, manifest, leads, skipped, widths,
     stage: "ingest", approved: null, built: {}, runs: {}, started: new Date().toISOString(),
   };
   if (flags["dry-run"]) state.dryRun = true;
@@ -573,6 +644,15 @@ export async function run(argv) {
   const concurrency = intFlag("concurrency", valueOf("concurrency"), { min: 1, max: 8, fallback: 3 });
   const minutes = intFlag("timeout", valueOf("timeout"), { min: 1, max: 600, fallback: null });
   const variantCount = intFlag("variants", valueOf("variants"), { min: 1, max: 4, fallback: 2 });
+  let widths = null;
+  if (valueOf("widths")) {
+    try {
+      widths = parseWidths(valueOf("widths"));
+    } catch (err) {
+      console.error(`tells make: ${err.message}`);
+      process.exit(2);
+    }
+  }
 
   const resume = valueOf("resume");
   let out;
@@ -585,10 +665,11 @@ export async function run(argv) {
       console.error(`tells make: ${display(out)} has no product.json; is it a --product run?`);
       process.exit(2);
     }
+    if (widths) state.widths = widths; // from here on
   } else if (valueOf("from")) {
-    ({ out, state } = await startFrom({ valueOf, positional, flags }));
+    ({ out, state } = await startFrom({ valueOf, positional, flags, widths }));
   } else {
-    const values = new Set([valueOf("screens"), valueOf("variants"), valueOf("out"), valueOf("agent"), valueOf("model"), valueOf("timeout"), valueOf("assets"), valueOf("concurrency"), valueOf("notes"), ...many("reference"), ...many("kind")].filter(Boolean));
+    const values = new Set([valueOf("screens"), valueOf("variants"), valueOf("out"), valueOf("agent"), valueOf("model"), valueOf("timeout"), valueOf("assets"), valueOf("concurrency"), valueOf("notes"), valueOf("widths"), ...many("reference"), ...many("kind")].filter(Boolean));
     const brief = positional.filter((p) => !values.has(p)).join(" ").trim();
     if (!brief) {
       console.error('tells make --product: give it a brief, e.g. tells make "a coffee roaster\'s back office" --product --screens "today: …; orders: …"');
@@ -618,7 +699,7 @@ export async function run(argv) {
     }
     const variants = variantCount;
     state = {
-      brief, screens, style: Boolean(flags.style), assets, variants,
+      brief, screens, style: Boolean(flags.style), assets, variants, widths,
       refs: refs.map((r) => ({ name: r.name, url: r.url ?? null, why: r.why ?? null, png: r.png })),
       stage: "system", approved: null, built: {}, runs: {}, started: new Date().toISOString(),
     };
@@ -630,12 +711,43 @@ export async function run(argv) {
   // Every agent's stream is kept under agents/, by stage, for the cost lines and scripts/make-timeline.mjs.
   let warnedSignIn = false;
   const agentRun = async (label, opts) => {
+    writeWidths(opts.dir, state.widths);
     const r = await runAgent({ ...opts, stream: path.join(out, "agents", `${label}.jsonl`) });
+    writeWidths(opts.dir, state.widths);
     if (r.signInEnds && !warnedSignIn && Date.parse(r.signInEnds) - Date.now() < 36 * 3600_000) {
       warnedSignIn = true;
       say(paint.yellow(`  Claude Code's sign-in ends ${r.signInEnds.slice(0, 16).replace("T", " ")} UTC. For long unattended runs, use \`claude setup-token\`.`));
     }
     return r;
+  };
+
+  // Before the person sees a variant: check it, and if it fails its own checks, one agent fixes the errors (warnings
+  // don't count) and it's checked again. One round: what still fails goes to the checkpoint marked.
+  const fixRound = async (variants, when) => {
+    const before = Object.fromEntries(variants.map((v) => [v, auditVariant(out, state, v)]));
+    const broken = variants.filter((v) => hasErrors(before[v]));
+    save(out, state);
+    if (!broken.length) return;
+    say(`${paint.bold("Fixing")} ${broken.join(", ")}: ${broken.map((v) => `${v} ${line(before[v])}`).join("; ")}`);
+    const entries = await Promise.all(
+      broken.map(async (v) => {
+        const dir = path.join(out, v);
+        const prompt = fixPrompt(state, before[v]);
+        const n = (state.fixes ?? []).filter((x) => x.v === v).length + 1;
+        fs.writeFileSync(path.join(dir, `FIX-${n}.md`), prompt);
+        const label = `fix-${v}-${n}`;
+        const r = await agentRun(label, { dir, prompt, agent, model, timeoutMs: timeoutFor("system") });
+        say(`  ${v}  ${r.ok ? paint.green("fixed") : paint.yellow(r.error)}  ${r.seconds}s`);
+        return { v, when, label, run: r, before: line(before[v]) };
+      }),
+    );
+    for (const e of entries) {
+      const after = auditVariant(out, state, e.v);
+      e.after = line(after);
+      if (hasErrors(after)) e.left = errorLines(after).slice(0, 30);
+    }
+    state.fixes = [...(state.fixes ?? []), ...entries];
+    save(out, state);
   };
 
   // ---- 0. Taken in with --from: baseline everything, then one agent writes it down, changing nothing --------
@@ -740,7 +852,9 @@ export async function run(argv) {
     }
     state.stage = "checkpoint";
     save(out, state);
-    checkpoint(out, state, built.map((d) => path.basename(d)), { say, paint });
+    const vs = built.map((d) => path.basename(d));
+    await fixRound(vs, "system");
+    checkpoint(out, state, vs, { say, paint, audited: true });
     return;
   }
 
@@ -763,7 +877,8 @@ export async function run(argv) {
     save(out, state);
     say(`  ${v}  ${r.ok ? paint.green("revised") : paint.yellow(r.error)}  ${r.seconds}s`);
     const variants = fs.readdirSync(out).filter((n) => /^v\d+$/.test(n) && fs.existsSync(path.join(out, n, "SYSTEM.md")));
-    checkpoint(out, state, variants, { say, paint, only: v });
+    await fixRound([v], `revise ${n}`);
+    checkpoint(out, state, variants, { say, paint, audited: true });
     return;
   }
 
@@ -776,7 +891,7 @@ export async function run(argv) {
       say(`Waiting for your pick. Look at ${display(path.join(out, "CHECKPOINT.md"))}, then: tells make --resume ${display(out)} --approve <v>`);
       return;
     }
-    copyTree(path.join(out, v), product, (name) => ["shots", "agent.log", "PROMPT.md", "study.html", ".tellsrc.proposed"].includes(name) || /^reference-\d+\.png$|^REVISE-\d+\.md$/.test(name));
+    copyTree(path.join(out, v), product, (name) => ["shots", "agent.log", "PROMPT.md", "study.html", ".tellsrc.proposed"].includes(name) || /^reference-\d+\.png$|^(REVISE|FIX)-\d+\.md$/.test(name));
     fs.mkdirSync(path.join(product, "system-shots"), { recursive: true });
     for (const s of state.screens.slice(0, 2)) {
       const png = path.join(out, v, "shots", `screens_${s.id}.html.png`);
@@ -794,7 +909,7 @@ export async function run(argv) {
     await pool(todo, concurrency, async (s) => {
       const work = path.join(out, "work", s.id);
       fs.rmSync(work, { recursive: true, force: true });
-      copyTree(product, work, (name) => name === "work");
+      copyTree(product, work, (name) => NOT_FOR_SCREENS.has(name));
       const prompt = screenPrompt(state, s);
       fs.writeFileSync(path.join(work, "PROMPT.md"), prompt);
       const r = await agentRun(`screen-${s.id}`, { dir: work, prompt, agent, model, timeoutMs: timeoutFor("screen") });

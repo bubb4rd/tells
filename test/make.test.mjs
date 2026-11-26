@@ -494,3 +494,59 @@ test("the timeline puts agents in order, counts overlaps once, and names the wai
   assert.equal(t.agents.find((a) => a.label === "review").streamed, false, "a run without a stream still shows");
   assert.equal(t.agents[0].tools[0].detail, "SYSTEM.md");
 });
+
+test("--product: a variant failing its own checks gets one fix round before you see it; widths reach every agent; screen agents get only what they need", () => {
+  const out = mkdtempSync(path.join(tmpdir(), "tells-product-"));
+  const fake = `"${process.execPath}" "${path.join(here, "fixtures", "make", "fake-product.mjs")}"`;
+  const r = tells("make", "a roaster's back office", "--product", "--screens", "today: what ships; orders: placed to paid; stock: green and roasted", "--widths", "1440,960", "--out", out, "--agent", fake, "--no-render");
+  assert.equal(r.status, 0, r.stderr);
+  const state = JSON.parse(readFileSync(path.join(out, "product.json"), "utf8"));
+  assert.deepEqual(state.widths, [1440, 960]);
+  for (const v of ["v1", "v2"]) {
+    assert.deepEqual(JSON.parse(readFileSync(path.join(out, v, ".tellsrc"), "utf8")), { shortcuts: [], widths: [1440, 960] }, `${v}: the widths are put back after the agent rewrote .tellsrc`);
+  }
+  // v1 was clean: no fix round. v2 had a generic CTA: one round, then clean.
+  assert.deepEqual(state.fixes.map((f) => f.v), ["v2"]);
+  assert.match(state.fixes[0].before, /check 2E/, "both lead screens");
+  assert.match(state.fixes[0].after, /check 0E/);
+  assert.equal(state.fixes[0].left, undefined);
+  assert.match(readFileSync(path.join(out, "v2", "FIXES.md"), "utf8"), /generic-cta/, "the fix agent is given the errors");
+  assert.doesNotMatch(readFileSync(path.join(out, "v2", "screens", "today.html"), "utf8"), /Learn more/);
+  const checkpoint = readFileSync(path.join(out, "CHECKPOINT.md"), "utf8");
+  assert.match(checkpoint, /## v2[\s\S]*one fix round/);
+  assert.doesNotMatch(checkpoint, /Still failing/);
+  assert.match(readFileSync(path.join(out, "v2", "FIX-1.md"), "utf8"), /- check: screens\/today\.html:\d+ `generic-cta`/);
+
+  const a = tells("make", "--resume", out, "--approve", "v2", "--agent", fake);
+  assert.equal(a.status, 0, a.stderr + a.stdout);
+  const seen = JSON.parse(readFileSync(path.join(out, "product", "screens", "stock.needs.md"), "utf8"));
+  for (const f of ["CRITIQUE.md", "STUDY.md", "FIXES.md", "shots"]) assert.ok(!seen.files.includes(f), `a screen agent isn't given ${f}`);
+  for (const f of ["SYSTEM.md", "CONTRACTS.md", "NOTES.md", "system", "screens", "system-shots"]) assert.ok(seen.files.includes(f), `a screen agent is given ${f}`);
+  assert.deepEqual(seen.tellsrc.widths, [1440, 960], "the screen agent's own render checks the product's widths");
+  assert.match(readFileSync(path.join(out, "REPORT.md"), "utf8"), /- System: 3 agents/, "the fix round counts in the system stage");
+});
+
+test(".tellsrc widths: render uses them when --widths isn't given; a bad list is reported", { skip: skipChrome }, () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "tells-widths-"));
+  writeFileSync(path.join(dir, "index.html"), '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Stock</title></head><body><main><h1>Stock</h1><p>Twelve kilos of Huila left.</p></main></body></html>');
+  writeFileSync(path.join(dir, ".tellsrc"), JSON.stringify({ widths: [1200] }));
+  const own = JSON.parse(tells("render", dir, "--json").stdout);
+  assert.deepEqual(own.targets.map((t) => t.widths), [[1200]]);
+  const flag = JSON.parse(tells("render", dir, "--json", "--widths", "800").stdout);
+  assert.deepEqual(flag.targets.map((t) => t.widths), [[800]], "the flag still wins");
+  writeFileSync(path.join(dir, ".tellsrc"), JSON.stringify({ widths: [100] }));
+  const bad = JSON.parse(tells("check", dir, "--json").stdout);
+  assert.ok(bad.hits.some((h) => h.rule === "ok-unknown" && /widths must be/.test(h.snippet)));
+});
+
+test("--product: a variant still failing after its fix round is marked at the checkpoint, with its errors", () => {
+  const out = mkdtempSync(path.join(tmpdir(), "tells-product-"));
+  const fake = `"${process.execPath}" "${path.join(here, "fixtures", "make", "fake-product.mjs")}"`;
+  const r = tellsIn({ FAKE_FIX: "none" }, "make", "a roaster's back office", "--product", "--screens", "today: what ships; orders: placed to paid; stock: green and roasted", "--out", out, "--agent", fake);
+  assert.equal(r.status, 0, r.stderr);
+  const state = JSON.parse(readFileSync(path.join(out, "product.json"), "utf8"));
+  assert.equal(state.fixes.length, 1, "one round only");
+  assert.equal(state.fixes[0].left.length, 2);
+  assert.match(readFileSync(path.join(out, "CHECKPOINT.md"), "utf8"), /## v2[\s\S]*Failed its own checks when built[\s\S]*\*\*Still failing:\*\*\n\n- check: screens\/(today|orders)\.html:\d+ `generic-cta`/);
+  assert.match(r.stdout, /v2 .*still failing after its fix round/);
+});

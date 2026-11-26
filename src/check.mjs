@@ -915,6 +915,7 @@ function configHits(rc, onlyRule) {
     out.push({ file: display(rc.file), line: 1, rule: id, severity: r.severity, category: r.category, snippet: `(${message})`, fix: r.fix });
   };
   if (rc.error) meta("ok-unknown", `.tellsrc ${rc.error}`);
+  for (const p of rc.config.problems ?? []) meta("ok-unknown", `.tellsrc ${p}`);
   for (const [rule, reason] of Object.entries(rc.config.allow)) {
     if (!RULE_BY_ID.has(rule) && !OTHER_TOOL_RULES.has(rule)) meta("ok-unknown", `.tellsrc allows unknown rule "${rule}"`);
     else if (!reason) meta("ok-reason", `.tellsrc allows ${rule} with no reason`);

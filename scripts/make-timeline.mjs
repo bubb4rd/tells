@@ -52,6 +52,7 @@ function recordedRuns(state) {
   for (const [k, r] of Object.entries(state.runs ?? {})) add(/^v\d+$/.test(k) ? `system-${k}` : k === "review" ? "review" : `screen-${k}`, r);
   const seen = {};
   for (const r of state.revisions ?? []) add(`revise-${r.v}-${(seen[r.v] = (seen[r.v] ?? 0) + 1)}`, r.run);
+  for (const f of state.fixes ?? []) add(f.label, f.run);
   (state.polishes ?? []).forEach((p, i) => {
     const n = i + 1;
     if (p.run?.runs) for (const [id, r] of Object.entries(p.run.runs)) add(`round-${n}-${id}`, r);

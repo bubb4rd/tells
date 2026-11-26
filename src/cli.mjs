@@ -127,7 +127,7 @@ export const FLAGS = [
   { name: "no-render", text: "skip the headless Chrome checks", cmds: ["same", "pick", "make"] },
   { name: "lead", arg: "<file>", text: "the approved screens that define the system (repeatable)", cmds: ["consistent"] },
   { name: "theme", arg: "<t>", text: "light (default) or dark, whatever the machine is set to", cmds: ["render", "same", "measure", "consistent", "click"] },
-  { name: "widths", arg: "a,b,c", text: "viewport widths in px (default 1440,960,390)", cmds: ["render"] },
+  { name: "widths", arg: "a,b,c", text: "viewport widths in px (default: .tellsrc widths, else 1440,960,390)", cmds: ["render", "make"] },
   // Used between commands (`tells rules`, `tells pick`), not documented.
   { name: "rules", cmds: ["check", "render", "same", "consistent", "click"], hidden: true },
   { name: "fingerprint", arg: "<json>", cmds: ["same"], hidden: true },

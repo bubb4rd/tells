@@ -13,7 +13,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { configFor } from "./config.mjs";
+import { configFor, isWidth } from "./config.mjs";
 import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR, emulateTheme, themeOf, navigate, splitRoute } from "./cdp.mjs";
 
 const ROOT = process.cwd();
@@ -82,7 +82,7 @@ function parseArgs(argv) {
 export function parseWidths(raw) {
   const parts = String(raw).split(",").map((s) => s.trim());
   const widths = parts.map(Number);
-  const bad = parts.filter((s, i) => !Number.isInteger(widths[i]) || widths[i] < 240 || widths[i] > 4096);
+  const bad = parts.filter((s, i) => !isWidth(widths[i]));
   if (bad.length || !parts.length) throw new Error(`--widths takes px from 240 to 4096, like 1440,960,390; "${bad.join(",") || raw}" isn't.`);
   return widths;
 }
@@ -1664,7 +1664,8 @@ export async function run(argv = process.argv.slice(2)) {
 
   for (const inp of rawInputs) {
     if (/^https?:\/\//i.test(inp)) {
-      targets.push({ kind: "url", url: inp, label: inp, widths: explicitWidths || DEFAULT_WIDTHS });
+      // A URL has no folder of its own: the .tellsrc of where render runs says what it's for.
+      targets.push({ kind: "url", url: inp, label: inp, widths: explicitWidths || configFor(path.join(ROOT, ".tellsrc"))?.config.widths || DEFAULT_WIDTHS });
     } else {
       // index.html#/inbox: one route of a single-page app, audited as its own page
       const { file, hash } = splitRoute(inp);
@@ -1679,7 +1680,8 @@ export async function run(argv = process.argv.slice(2)) {
           file: f,
           hash,
           label: rel,
-          widths: explicitWidths || (isMobileOnly ? [390] : DEFAULT_WIDTHS),
+          // --widths, else the widths its .tellsrc says the product is for, else the defaults
+          widths: explicitWidths || configFor(f)?.config.widths || (isMobileOnly ? [390] : DEFAULT_WIDTHS),
         });
       }
     }
