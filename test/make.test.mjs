@@ -298,3 +298,66 @@ test("tokens are read by selector block, and a diff names each change", async ()
     { selector: ':root[data-theme="dark"]', token: "--accent", was: "#3FBF6A", now: "#FF6FB5" },
   ]);
 });
+
+test("--revise <screen> changes one screen of a product taken in, guarded, and --undo puts it back", { skip: skipChrome }, () => {
+  const source = path.join(here, "fixtures", "make", "existing-spa");
+  const out = path.join(mkdtempSync(path.join(tmpdir(), "tells-restructure-")), "run");
+  const node = (f) => `"${process.execPath}" "${path.join(here, "fixtures", "make", f)}"`;
+  assert.equal(tells("make", "--from", source, "--out", out, "--agent", node("fake-ingest.mjs")).status, 0);
+  const product = path.join(out, "product");
+  const orders = () => readFileSync(path.join(product, "screens", "orders.js"), "utf8");
+  const accent = () => /--accent: (#\w+)/.exec(readFileSync(path.join(product, "styles.css"), "utf8"))[1];
+  const state = () => JSON.parse(readFileSync(path.join(out, "product.json"), "utf8"));
+
+  assert.equal(tells("make", "--resume", out, "--revise", "nothere", "--notes", "x").status, 2, "an unknown screen is a usage error");
+
+  // A clean round: only Orders changes, and the other screens' screenshots don't move.
+  const r = tells("make", "--resume", out, "--revise", "orders", "--notes", "shorter line", "--agent", node("fake-restructure.mjs"));
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  assert.match(orders(), /orders wait/);
+  const round = state().polishes[0];
+  assert.equal(round.screen, "orders");
+  assert.ok(existsSync(path.join(out, "rounds", "1", "before", "screens", "orders.js")), "a snapshot is taken before the round");
+  const moved = Object.fromEntries(round.shots.map((x) => [x.id, x.changed]));
+  assert.ok(moved.orders > 0, "the restructured screen changed");
+  assert.equal(moved.home, 0, "home didn't move");
+  assert.equal(moved.stock, 0, "stock didn't move");
+  assert.match(round.after, /new since it came in/);
+  assert.match(readFileSync(path.join(out, "REPORT.md"), "utf8"), /After your notes on orders, round 1/);
+
+  // --undo puts the product back as it was before the round.
+  assert.equal(tells("make", "--resume", out, "--undo").status, 0);
+  assert.match(orders(), /orders are waiting to be confirmed/);
+  assert.equal(state().polishes.length, 0);
+
+  // A token changed and not listed: the agent gets a second turn, and puts it back.
+  const fixed = tells("make", "--resume", out, "--revise", "orders", "--notes", "sneak", "--agent", node("fake-restructure.mjs"));
+  assert.equal(fixed.status, 0, fixed.stderr + fixed.stdout);
+  assert.match(fixed.stdout, /--accent/);
+  assert.equal(accent(), "#17703A");
+  assert.equal(state().polishes[0].run.turns, 2);
+  assert.equal(tells("make", "--resume", out, "--undo").status, 0);
+
+  // Still there after the second turn: the whole round is put back, and the run fails.
+  const stuck = tells("make", "--resume", out, "--revise", "orders", "--notes", "sneak and stay", "--agent", node("fake-restructure.mjs"));
+  assert.equal(stuck.status, 1);
+  assert.equal(accent(), "#17703A");
+  assert.match(orders(), /orders are waiting to be confirmed/, "the round's other changes go too");
+  assert.match(readFileSync(path.join(out, "rounds", "1", "GUARD.md"), "utf8"), /--accent.*not listed/);
+  assert.equal(state().polishes.length, 0);
+});
+
+test("the guard names tokens the round didn't list, and other screens that drifted", async () => {
+  const { listedTokens, roundText, tokenViolations, traitViolations } = await import("../src/guard.mjs");
+  const log = "## Round 1\n\n### Tokens changed\n\n- `--q`: 336px, for the quadrants\n\n## Round 2\n\nOrders.\n\n### Tokens changed\n\n- `--accent`, the note asked for pink\n";
+  assert.deepEqual([...listedTokens(roundText(log, 2))], ["--accent"]);
+  assert.deepEqual([...listedTokens(roundText(log, 1))], ["--q"]);
+  const before = { ":root": { "--accent": "#17703A", "--ink": "#1D1B18" } };
+  const after = { ":root": { "--accent": "#FF6FB5", "--ink": "#000000" } };
+  assert.deepEqual(tokenViolations(before, after, listedTokens(roundText(log, 2))).map((v) => v.token), ["--ink"]);
+
+  const traits = (h1, panel) => ({ families: ["apfel"], h1, h2: 20, page: [243, 242, 238], panel: { radius: 0, bg: "#f3f2ee", border: "#d2cfc6", ...panel }, marks: ["dots"], layout: "sidebar-main", accents: [4] });
+  const base = [{ target: "index.html#/home", traits: traits(28) }, { target: "index.html#/money", traits: traits(28) }];
+  const now = [{ target: "index.html#/home", traits: traits(40) }, { target: "index.html#/money", traits: traits(28, { radius: 12 }) }];
+  assert.deepEqual(traitViolations(base, now, new Set(["index.html#/home"])).map((v) => `${v.target} ${v.rule}`), ["index.html#/money drift-panel"]);
+});

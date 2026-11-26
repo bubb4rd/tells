@@ -106,7 +106,8 @@ tells rules      [set]              List every rule with its fix; sets: check, r
 --screens <s>   make --product: "<id>: <job>; <id>: <job>; …", the first two are the lead screens
 --resume <out>  make: continue a --product run; --approve <v> picks its system
 --approve <v>   make --resume: the system variant to build the screens on
---revise <v>    make --resume: send a system variant back with --notes before approving, or `product` once it's built
+--revise <v>    make --resume: send a system variant back with --notes before approving; once built, `product` or (with --from) one screen
+--undo          make --resume: put back the last round of notes on a product taken in with --from
 --concurrency n make --product: screen agents at a time, default 3
 --agent <cmd>   make: agent command that reads the prompt on stdin (default claude -p)
 --model <m>     make: model for the default agent
@@ -256,6 +257,8 @@ tells make --resume tells-make/<run> --revise product --notes "<what to change>"
 ```
 
 It copies the product to `<run>/product`; the source is never written to, and scratch copies (`*.bak`) are left out. It finds the screens (one per page, or one per route of a single-page app, rendered from its navigation, with a route that falls back to the default marked not built) and writes them to `screens.json`. Then it records the product as it came: screenshots of every screen in `baseline/light/` (and `baseline/dark/` when it has a dark theme), its CSS tokens, and every check's hits, which are the client's and don't count against later rounds. One agent describes it without changing anything: `SYSTEM.md` (what exists, measured), `CONTRACTS.md`, `APPROVED.md` (each decision, frozen or open) and `PRODUCT.md` (how a screen is built here). Any other file it touches is put back and listed in `REPORT.md`. Notes rounds read `APPROVED.md` first and skip the blanket `fix`, which would rewrite approved choices.
+
+Notes on one screen go with `--revise <screen>`: one agent changes that screen and scopes anything shared to it. Every round on a product taken in is guarded. The product is copied to `rounds/<n>/before` first. After the round, a token that changed without being listed under "Tokens changed" in `POLISH.md` is put back, and on a one-screen round, so is another screen whose typeface, headings, page, panel, marks or shell drifted from how it came. The agent gets one more turn to put them back itself; if they're still there, the round is undone and the run fails. Each screen's screenshot is compared with the round before, and screens that moved are listed in `REPORT.md`, without blocking, since clocks and live data move pixels too. Only hits the product didn't have when it came in count. `--undo` puts the last round back.
 
 `tells consistent <screens…>` is the check behind step 4, and it works on its own. Inside one product, sameness is the point, so it renders every screen and flags the one whose typeface, heading sizes, page colour, panel, shell or accent differ from the system: what most screens share, or what the screens named with `--lead` share. Routes of a single-page app work as `index.html#/inbox`, here and in `render`, `measure` and `click`. On one ten-screen product, it failed the six pages built as separate briefs (two page colours, two panel surfaces and two h1 sizes, though every page shared the typeface) and passed the version built on one shared library.
 
