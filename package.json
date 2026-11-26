@@ -17,6 +17,7 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "docs:rules": "node scripts/rules-table.mjs",
+    "notes": "node scripts/notes.mjs",
     "lint:self": "node bin/tells.mjs check test/fixtures/clean",
     "shots": "node scripts/shots.mjs"
   },

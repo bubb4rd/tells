@@ -31,6 +31,19 @@ To delete a file, list its path in `DELETE.txt`, one per line: `tells make` dele
 
 Screenshot again with `--full`, and open the new screenshots. At the end of `POLISH.md` (create it if it isn't there; keep what earlier rounds wrote), add `## Round {{round}}`, and under it take each note in turn: what you changed, in which file, and where the screenshot shows it's fixed. Then the ones you found yourself under step 3. Look twice: fix, screenshot, look again.
 
+## The ledger
+
+Add a line to `NOTES.jsonl` for each note (create it if it isn't there; keep earlier lines), and one for each thing you found yourself under step 3. Each line is one JSON object:
+
+```json
+{"round": {{round}}, "note": "the note, short, in their words", "from": "person", "kind": "defect", "tag": "label-collision", "rule": null}
+```
+
+- `from`: `person` for their notes, `found` for yours.
+- `kind`: `defect` if it's something they shouldn't have had to point out (clipped, misaligned, missing, wrong, broken). `decision` if it's a call only they could make (what goes where, which colour, what to show).
+- `tag`: the kind of thing, not this instance: `label-collision`, not `customers-scale`. Reuse a tag from earlier lines when it's the same kind.
+- `rule`: the tells rule that flags this kind of thing (`node {{tells}}/bin/tells.mjs rules` lists them), or `null`. Most will be `null`. Those are what tells should learn next.
+
 ## Last
 
 ```sh
