@@ -550,3 +550,13 @@ test("--product: a variant still failing after its fix round is marked at the ch
   assert.match(readFileSync(path.join(out, "CHECKPOINT.md"), "utf8"), /## v2[\s\S]*Failed its own checks when built[\s\S]*\*\*Still failing:\*\*\n\n- check: screens\/(today|orders)\.html:\d+ `generic-cta`/);
   assert.match(r.stdout, /v2 .*still failing after its fix round/);
 });
+
+test("at the checkpoint, a lead screen's link to a screen not built yet isn't an error; any other broken link is", async () => {
+  const { dropLinksToLater } = await import("../src/product.mjs");
+  const state = { screens: [{ id: "today" }, { id: "orders" }, { id: "roasts" }, { id: "stock" }] };
+  const hit = (to) => ({ target: "screens/today.html", rule: "broken-link", severity: "error", detail: `"x" → ${to}` });
+  const a = { click: { errors: 4, warnings: 0, hits: [hit("roasts.html"), hit("stock.html#lots"), hit("reports.html"), { ...hit("x"), rule: "click-error" }] } };
+  const b = dropLinksToLater(a, state);
+  assert.deepEqual(b.click.hits.map((h) => h.detail), ['"x" → reports.html', '"x" → x']);
+  assert.equal(b.click.errors, 2);
+});

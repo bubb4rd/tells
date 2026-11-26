@@ -504,6 +504,18 @@ function writeReport(out, state) {
 const part = (name, x) => (x.error ? `${name} didn't run` : `${name} ${x.errors}E/${x.warnings}W`);
 const line = (a) => [part("consistent", a.consistent), part("check", a.check), part("render", a.render), ...(a.click ? [part("click", a.click)] : [])].join(" · ");
 
+/**
+ * A link from a lead screen to a screen that hasn't been built yet. The system prompt allows them (the navigation
+ * names the whole product), so at the checkpoint they aren't errors: the screen stage builds the pages they point at.
+ */
+export function dropLinksToLater(a, state) {
+  const later = new Set(state.screens.slice(2).map((s) => `${s.id}.html`));
+  const toLater = (h) => h.rule === "broken-link" && later.has(path.basename(String(h.detail ?? "").split("→").pop().trim().split(/[?#]/)[0]));
+  const hits = (a.click.hits ?? []).filter((h) => !toLater(h));
+  const count = (sev) => hits.filter((h) => h.severity === sev).length;
+  return { ...a, click: { ...a.click, hits, errors: count("error"), warnings: count("warn") } };
+}
+
 /** One variant's lead screens as the person will see them: exceptions set aside, fixed, screenshotted, checked. */
 function auditVariant(out, state, v) {
   const d = path.join(out, v);
@@ -511,7 +523,7 @@ function auditVariant(out, state, v) {
   if (set) state.proposed = { ...(state.proposed ?? {}), [v]: set };
   spawnSync(process.execPath, [BIN, "fix", "."], { cwd: d, stdio: "ignore" });
   tells(["measure", ...state.screens.slice(0, 2).map((s) => `screens/${s.id}.html`), "--shots", "shots", "--json"], d);
-  const a = audit(d, state);
+  const a = dropLinksToLater(audit(d, state), state);
   state.audits = { ...(state.audits ?? {}), [v]: line(a) };
   return a;
 }
