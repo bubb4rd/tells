@@ -26,15 +26,21 @@ export function listedTokens(text) {
   return out;
 }
 
-/** The text of one round in a running log (POLISH.md): from "## Round n" to the next "## Round". */
+/**
+ * The text of one round in a running log (POLISH.md): each section from "## Round n" to the next "## Round". A round
+ * with several agents (carry, add) has several sections under the same number.
+ */
 export function roundText(log, n) {
-  const m = new RegExp(`^## Round ${n}\\b[\\s\\S]*?(?=^## Round \\d|(?![\\s\\S]))`, "m").exec(String(log ?? ""));
-  return m ? m[0] : "";
+  return [...String(log ?? "").matchAll(new RegExp(`^## Round ${n}\\b[\\s\\S]*?(?=^## Round \\d|(?![\\s\\S]))`, "gm"))].map((m) => m[0]).join("\n");
 }
 
-/** Token changes the round didn't list. */
+/**
+ * Token changes the round didn't list. A new token is the round's own business; an approved one is not: a value
+ * changed or removed, or an existing name set again in a new place (`.home { --green: pink }`), which overrides it there.
+ */
 export function tokenViolations(before, after, listed) {
-  return diffTokens(before, after).filter((c) => !listed.has(c.token));
+  const existing = new Set(Object.values(before).flatMap((block) => Object.keys(block)));
+  return diffTokens(before, after).filter((c) => !listed.has(c.token) && (c.was !== null || existing.has(c.token)));
 }
 
 /**

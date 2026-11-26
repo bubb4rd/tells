@@ -355,9 +355,43 @@ test("the guard names tokens the round didn't list, and other screens that drift
   const before = { ":root": { "--accent": "#17703A", "--ink": "#1D1B18" } };
   const after = { ":root": { "--accent": "#FF6FB5", "--ink": "#000000" } };
   assert.deepEqual(tokenViolations(before, after, listedTokens(roundText(log, 2))).map((v) => v.token), ["--ink"]);
+  // New names are the round's own; an approved name set again somewhere new overrides it there.
+  const added = { ...after, ":root": { ...before[":root"] }, ".home": { "--q": "336px", "--ink": "#FF0000" } };
+  assert.deepEqual(tokenViolations(before, added, new Set()).map((v) => `${v.selector} ${v.token}`), [".home --ink"]);
 
   const traits = (h1, panel) => ({ families: ["apfel"], h1, h2: 20, page: [243, 242, 238], panel: { radius: 0, bg: "#f3f2ee", border: "#d2cfc6", ...panel }, marks: ["dots"], layout: "sidebar-main", accents: [4] });
   const base = [{ target: "index.html#/home", traits: traits(28) }, { target: "index.html#/money", traits: traits(28) }];
   const now = [{ target: "index.html#/home", traits: traits(40) }, { target: "index.html#/money", traits: traits(28, { radius: 12 }) }];
   assert.deepEqual(traitViolations(base, now, new Set(["index.html#/home"])).map((v) => `${v.target} ${v.rule}`), ["index.html#/money drift-panel"]);
+});
+
+test("--carry lays one screen's layout onto others; --add builds a new screen the house way", { skip: skipChrome }, () => {
+  const source = path.join(here, "fixtures", "make", "existing-spa");
+  const out = path.join(mkdtempSync(path.join(tmpdir(), "tells-carry-")), "run");
+  const node = (f) => `"${process.execPath}" "${path.join(here, "fixtures", "make", f)}"`;
+  assert.equal(tells("make", "--from", source, "--out", out, "--agent", node("fake-ingest.mjs")).status, 0);
+  const product = path.join(out, "product");
+  const file = (f) => readFileSync(path.join(product, f), "utf8");
+  const state = () => JSON.parse(readFileSync(path.join(out, "product.json"), "utf8"));
+
+  assert.equal(tells("make", "--resume", out, "--carry", "nothere").status, 2);
+  assert.equal(tells("make", "--resume", out, "--carry", "orders", "--to", "orders").status, 2, "a screen isn't carried onto itself");
+  assert.equal(tells("make", "--resume", out, "--add", "orders: again").status, 2, "--add takes new screens");
+
+  const c = tells("make", "--resume", out, "--carry", "orders", "--to", "stock,home", "--agent", node("fake-carry.mjs"));
+  assert.equal(c.status, 0, c.stderr + c.stdout);
+  assert.ok(existsSync(path.join(product, "PATTERN.md")));
+  assert.match(file("screens/stock.js"), /ruled/, "a screen with its own files is laid in its copy, and its files come back");
+  assert.match(file("app.js"), /ruled/, "a screen the shell draws is laid in place");
+  assert.match(file("styles.css"), /#17703A/, "a shared file edited in a copy doesn't come back");
+  assert.equal(state().polishes[0].carry, "orders");
+  assert.deepEqual(state().polishes[0].to, ["stock", "home"]);
+
+  const a = tells("make", "--resume", out, "--add", "roasts: the week's batches", "--agent", node("fake-add.mjs"));
+  assert.equal(a.status, 0, a.stderr + a.stdout);
+  const roasts = state().manifest.find((x) => x.id === "roasts");
+  assert.deepEqual([roasts.built, roasts.target, roasts.files.join(" "), roasts.job], [true, "index.html#/roasts", "screens/roasts.js", "the week's batches"]);
+  assert.ok(state().screens.some((x) => x.id === "roasts"));
+  assert.ok(JSON.parse(file("screens.json")).some((x) => x.id === "roasts"));
+  assert.ok(existsSync(path.join(out, "rounds", "2", "shots", "index.html_roasts.png")));
 });
