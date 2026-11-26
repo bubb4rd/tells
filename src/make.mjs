@@ -101,39 +101,141 @@ export function studyPrompts(brief, n, refs, { page = "product", assets = false,
   );
 }
 
-export function runAgent({ dir, prompt, agent, model, timeoutMs }) {
+/** What a Claude Code `result` event says the run cost. */
+export function usageOf(result) {
+  const u = result?.usage ?? {};
+  return {
+    costUsd: result?.total_cost_usd ?? null,
+    turns: result?.num_turns ?? null,
+    apiMs: result?.duration_api_ms ?? null,
+    tokens: {
+      input: u.input_tokens ?? 0,
+      output: u.output_tokens ?? 0,
+      cacheRead: u.cache_read_input_tokens ?? 0,
+      cacheWrite: u.cache_creation_input_tokens ?? 0,
+    },
+  };
+}
+
+/**
+ * Runs one agent in `dir` with the prompt on stdin. The default agent (Claude Code) streams JSON: every event is
+ * stamped with the time it arrived and kept in `stream` (default `dir/agent.jsonl`), the final answer goes to
+ * `agent.log`, and the result carries what the run cost. A custom --agent writes straight to `agent.log` and
+ * reports seconds only. `command` replaces the `claude` binary (for tests).
+ */
+export function runAgent({ dir, prompt, agent, model, timeoutMs, stream = null, command = ["claude"] }) {
   return new Promise((resolve) => {
     const log = fs.openSync(path.join(dir, "agent.log"), "w");
+    const startedAt = Date.now();
     const child = agent
       ? spawn(agent, { cwd: dir, shell: true, stdio: ["pipe", log, log] })
-      : spawn("claude", [
+      : spawn(command[0], [
+          ...command.slice(1),
           "-p", "--no-session-persistence",
+          "--output-format", "stream-json", "--verbose",
+          // Only what the agent needs: none of your own hooks, plugins, MCP servers or skills. Each costs tokens
+          // on every turn, and a hook that blocks a tool call costs a turn.
+          "--setting-sources", "project,local", "--strict-mcp-config", "--disable-slash-commands",
           "--allowedTools", "Read,Write,Edit,Glob,Grep,Bash(node:*)",
           "--add-dir", TELLS,
           ...(model ? ["--model", model] : []),
-        ], { cwd: dir, stdio: ["pipe", log, log] });
-    const started = Date.now();
+        ], { cwd: dir, stdio: ["pipe", "pipe", log] });
+    let result = null;
+    let jsonl = null;
+    let rest = "";
+    const take = (text) => {
+      const at = Date.now();
+      for (const raw of text.split("\n")) {
+        if (!raw.trim()) continue;
+        let event;
+        try {
+          event = JSON.parse(raw);
+        } catch {
+          fs.writeSync(log, raw + "\n"); // not an event: keep it readable in the log
+          continue;
+        }
+        fs.writeSync(jsonl, JSON.stringify({ at, ...event }) + "\n");
+        if (event.type === "result") result = event;
+      }
+    };
+    if (!agent) {
+      const file = stream ?? path.join(dir, "agent.jsonl");
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      jsonl = fs.openSync(file, "w");
+      child.stdout.setEncoding("utf8");
+      child.stdout.on("data", (chunk) => {
+        const lines = (rest + chunk).split("\n");
+        rest = lines.pop();
+        take(lines.join("\n"));
+      });
+    }
     const timer = setTimeout(() => child.kill("SIGTERM"), timeoutMs);
-    child.on("error", (err) => {
+    let done = false;
+    const finish = (status) => {
+      if (done) return;
+      done = true;
       clearTimeout(timer);
-      resolve({ ok: false, error: err.code === "ENOENT" ? "agent command not found" : err.message, seconds: 0 });
-    });
-    child.on("close", (code, signal) => {
-      clearTimeout(timer);
+      if (jsonl !== null) {
+        if (rest) take(rest);
+        fs.closeSync(jsonl);
+      }
+      if (result?.result) fs.writeSync(log, (result.is_error ? "Error: " : "") + String(result.result) + "\n");
       fs.closeSync(log);
-      const seconds = Math.round((Date.now() - started) / 1000);
-      resolve({ ok: code === 0, error: signal ? `stopped after ${seconds}s (${signal})` : code ? `exit ${code}` : null, seconds });
-    });
+      const endedAt = Date.now();
+      const seconds = Math.round((endedAt - startedAt) / 1000);
+      resolve({
+        ...status(seconds),
+        seconds,
+        started: new Date(startedAt).toISOString(),
+        ended: new Date(endedAt).toISOString(),
+        ...(result ? usageOf(result) : {}),
+        ...(result?.credential_expires_at ? { signInEnds: result.credential_expires_at } : {}),
+      });
+    };
+    child.on("error", (err) => finish(() => ({ ok: false, error: err.code === "ENOENT" ? "agent command not found" : err.message })));
+    child.on("close", (code, signal) =>
+      finish((seconds) => ({
+        ok: code === 0 && !result?.is_error,
+        error: signal ? `stopped after ${seconds}s (${signal})` : code ? `exit ${code}` : result?.is_error ? `agent error: ${result.subtype ?? "unknown"}` : null,
+      })),
+    );
     child.stdin.on("error", () => {});
     child.stdin.end(prompt);
   });
+}
+
+const kTokens = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n));
+
+/** Adds up agent runs: time, cost, tokens. Runs from a custom --agent count for time only. */
+export function totalOf(runs) {
+  const t = { runs: 0, seconds: 0, costUsd: 0, measured: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
+  for (const r of runs.filter(Boolean)) {
+    t.runs++;
+    t.seconds += r.seconds ?? 0;
+    if (r.costUsd == null) continue;
+    t.measured++;
+    t.costUsd += r.costUsd;
+    for (const k of Object.keys(t.tokens)) t.tokens[k] += r.tokens?.[k] ?? 0;
+  }
+  return t;
+}
+
+/** "3 agents, 41m, $4.12, 1.2M in (1.1M cached) / 38k out", or time only when nothing was measured. */
+export function costLine(runs) {
+  const t = totalOf(runs);
+  const time = t.seconds >= 60 ? `${Math.round(t.seconds / 60)}m` : `${t.seconds}s`;
+  const head = `${t.runs} agent${t.runs === 1 ? "" : "s"}, ${time}`;
+  if (!t.measured) return head;
+  const { input, output, cacheRead, cacheWrite } = t.tokens;
+  const unmeasured = t.runs - t.measured;
+  return `${head}, $${t.costUsd.toFixed(2)}, ${kTokens(input + cacheRead + cacheWrite)} in (${kTokens(cacheRead)} cached) / ${kTokens(output)} out${unmeasured ? `, ${unmeasured} not measured` : ""}`;
 }
 
 function report({ brief, out, ranked, runs, refs }) {
   const rows = ranked.map((r) => {
     const v = path.basename(r.variant);
     const run = runs[v];
-    return `| ${r.rank} | [${v}](${v}/index.html) | ${ruleCount(r.errors)} | ${r.exceptions} | ${r.lands.length ? r.lands.join(", ") : "no"} | ${r.houseOf ? `${r.houseAxes}/${r.houseOf}` : "–"} | ${r.warnings.length} | ${run?.seconds ?? "–"}s |`;
+    return `| ${r.rank} | [${v}](${v}/index.html) | ${ruleCount(r.errors)} | ${r.exceptions} | ${r.lands.length ? r.lands.join(", ") : "no"} | ${r.houseOf ? `${r.houseAxes}/${r.houseOf}` : "–"} | ${r.warnings.length} | ${run?.seconds ?? "–"}s${run?.costUsd != null ? `, $${run.costUsd.toFixed(2)}` : ""} |`;
   });
   const win = ranked[0];
   return [
@@ -144,6 +246,8 @@ function report({ brief, out, ranked, runs, refs }) {
     "| # | Variant | Rules broken | Exceptions | Default look | House axes | Warnings | Time |",
     "|---|---|---|---|---|---|---|---|",
     ...rows,
+    "",
+    `Agents: ${costLine(Object.values(runs))}.`,
     "",
     "## Why the others lost",
     "",
@@ -235,7 +339,7 @@ export async function run(argv = process.argv.slice(2)) {
       const r = await runAgent({ dir, prompt: texts[i], agent, model: valueOf("model"), timeoutMs });
       runs[`v${i + 1}`] = r;
       const made = fs.existsSync(path.join(dir, "index.html"));
-      say(`  v${i + 1}  ${made ? paint.green("built") : paint.red("no index.html")}  ${r.seconds}s${r.error ? paint.yellow(`  ${r.error}`) : ""}`);
+      say(`  v${i + 1}  ${made ? paint.green("built") : paint.red("no index.html")}  ${r.seconds}s${r.costUsd != null ? `, $${r.costUsd.toFixed(2)}` : ""}${r.error ? paint.yellow(`  ${r.error}`) : ""}`);
     }),
   );
 

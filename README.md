@@ -249,6 +249,8 @@ tells make --resume tells-make/<run> --approve v1
 
 5. **Your notes.** Once it's built, use it, then send it back: `--resume <run> --revise product --notes "<what to change>"` (or a notes file). One agent takes each note to its cause, usually a part of the system, so every screen gets the fix, looks for more of the same kind, and writes it into `SYSTEM.md`. Every check runs again, and `REPORT.md` and `product/POLISH.md` gain a round. Repeat as often as you like. Each note also goes into `product/NOTES.jsonl`, the ledger: a defect (something you shouldn't have had to point out) or a decision (a call only you could make), with a tag for the kind of thing and the tells rule that flags it, if one does. `npm run notes -- <ledgers…>` adds them up across products, round by round. Defects should fall as tells learns, and a kind that comes back in a second product with no rule is the next rule to write. `docs/notes-ledger.jsonl` holds the notes from the roaster and Dame Hub so far.
 
+**What it cost.** Every agent's stream is kept in `<run>/agents/<stage>.jsonl`, stamped as it arrives, and `REPORT.md` ends with one line per stage: agents, time, cost and tokens (a custom `--agent` counts for time only). `node scripts/make-timeline.mjs <run>` writes `timeline.json`: when each agent ran, every tool call it made, what it cost, and the gaps between agents where the run waited on you.
+
 A run stopped by a limit resumes with `--resume <run>`: finished screens are kept and failed ones run again.
 
 **A product that already exists.** Once a client has approved a product, a fresh run throws their decisions away. `--from` takes it in instead:

@@ -5,7 +5,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { ANGLES, isLanding, prompts, studyPrompts } from "../src/make.mjs";
+import { ANGLES, costLine, isLanding, prompts, runAgent, studyPrompts } from "../src/make.mjs";
+import { readStream, timeline } from "../scripts/make-timeline.mjs";
 import { polishPrompt } from "../src/product.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -224,6 +225,8 @@ test("a built product goes back with --revise product: notes in, deletions and e
   assert.match(readFileSync(path.join(out, "REPORT.md"), "utf8"), /After your notes, round 1: consistent.* · your notes: 1 defect, 0 decisions; found 1 more/);
   assert.deepEqual(state.polishes[0].ledger, { defects: 1, decisions: 0, found: 1 }, "a line that isn't JSON is skipped");
   assert.ok(existsSync(path.join(out, "POLISH-PROMPT-1.md")));
+  assert.match(readFileSync(path.join(out, "REPORT.md"), "utf8"), /## What the agents cost\n\n- Notes, round 1: 1 agent, \d+s\n- All: 1 agent/, "a custom agent counts for time only");
+  assert.ok(state.polishes[0].run.started, "each run keeps when it started, for the timeline");
 
   tells("make", "--resume", out, "--revise", "product", "--notes", "the tabs sit too high", "--agent", polish);
   assert.match(readFileSync(path.join(product, "POLISH.md"), "utf8"), /## Round 1[\s\S]*## Round 2/);
@@ -394,4 +397,100 @@ test("--carry lays one screen's layout onto others; --add builds a new screen th
   assert.ok(state().screens.some((x) => x.id === "roasts"));
   assert.ok(JSON.parse(file("screens.json")).some((x) => x.id === "roasts"));
   assert.ok(existsSync(path.join(out, "rounds", "2", "shots", "index.html_roasts.png")));
+});
+
+const fakeClaude = [process.execPath, path.join(here, "fixtures", "make", "fake-claude.mjs")];
+const runFake = async (mode) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "tells-agent-"));
+  process.env.FAKE_CLAUDE = mode;
+  try {
+    const stream = path.join(dir, "agents", "system-v1.jsonl");
+    return { dir, stream, r: await runAgent({ dir, prompt: "build it", timeoutMs: 30_000, stream, command: fakeClaude }) };
+  } finally {
+    delete process.env.FAKE_CLAUDE;
+  }
+};
+
+test("the default agent's stream is kept, stamped, and its result says what the run cost", async () => {
+  const { dir, stream, r } = await runFake("");
+  assert.equal(r.ok, true);
+  assert.equal(r.costUsd, 0.42);
+  assert.equal(r.turns, 4);
+  assert.equal(r.apiMs, 1234);
+  assert.deepEqual(r.tokens, { input: 10, output: 500, cacheRead: 90000, cacheWrite: 30000 });
+  assert.equal(r.signInEnds, "2026-11-27T19:26:36.368Z");
+  const argv = JSON.parse(readFileSync(path.join(dir, "argv.json"), "utf8"));
+  for (const flag of ["--strict-mcp-config", "--disable-slash-commands"]) assert.ok(argv.includes(flag), `${flag}: none of the user's MCP servers or skills`);
+  assert.equal(argv[argv.indexOf("--setting-sources") + 1], "project,local", "none of the user's own hooks or plugins");
+  assert.ok(Date.parse(r.started) <= Date.parse(r.ended));
+  const events = readFileSync(stream, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.equal(events.length, 5, "every event, and not the stray line");
+  assert.ok(events.every((e) => typeof e.at === "number"));
+  const log = readFileSync(path.join(dir, "agent.log"), "utf8");
+  assert.match(log, /Built index\.html\./, "the final answer reads in agent.log as before");
+  assert.match(log, /a stray line/, "a line that isn't an event is kept in the log");
+  const s = readStream(stream);
+  assert.deepEqual(s.tools.map((t) => [t.name, t.detail]), [["Bash", "node bin/tells.mjs render index.html --strict"], ["Write", "index.html"]]);
+});
+
+test("a result line with no trailing newline is still read", async () => {
+  const { r } = await runFake("unterminated");
+  assert.equal(r.costUsd, 0.42);
+});
+
+test("a stream that ends with no result still resolves, with seconds and no usage", async () => {
+  const { stream, r } = await runFake("no-result");
+  assert.equal(r.ok, false);
+  assert.equal(r.error, "exit 1");
+  assert.equal(typeof r.seconds, "number");
+  assert.equal(r.costUsd, undefined);
+  assert.equal(readStream(stream).finished, false);
+  assert.equal(readStream(stream).tools.length, 2, "the tool calls it made before stopping are kept");
+});
+
+test("cost lines add up measured runs and say when some weren't measured", () => {
+  const a = { seconds: 600, costUsd: 1.5, tokens: { input: 1000, output: 20000, cacheRead: 800000, cacheWrite: 100000 } };
+  const b = { seconds: 300 };
+  assert.equal(costLine([a, a]), "2 agents, 20m, $3.00, 1.8M in (1.6M cached) / 40k out");
+  assert.equal(costLine([a, b]), "2 agents, 15m, $1.50, 901k in (800k cached) / 20k out, 1 not measured");
+  assert.equal(costLine([b]), "1 agent, 5m");
+});
+
+test("the timeline puts agents in order, counts overlaps once, and names the waits between them", () => {
+  const out = mkdtempSync(path.join(tmpdir(), "tells-timeline-"));
+  const t0 = Date.parse("2026-11-25T10:00:00Z");
+  const at = (min) => new Date(t0 + min * 60_000).toISOString();
+  const stream = (label, start, end, cost) => {
+    mkdirSync(path.join(out, "agents"), { recursive: true });
+    const lines = [
+      { at: t0 + start * 60_000, type: "system", subtype: "init" },
+      { at: t0 + (start + 1) * 60_000, type: "assistant", message: { content: [{ type: "tool_use", name: "Read", input: { file_path: "SYSTEM.md" } }] } },
+      { at: t0 + end * 60_000, type: "result", total_cost_usd: cost, num_turns: 3, usage: {} },
+    ];
+    writeFileSync(path.join(out, "agents", `${label}.jsonl`), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+  };
+  stream("system-v1", 0, 16, 2);
+  stream("system-v2", 0, 18, 2.5);
+  stream("screen-orders", 60, 70, 1);
+  writeFileSync(
+    path.join(out, "product.json"),
+    JSON.stringify({
+      brief: "a roaster back office",
+      runs: {
+        v1: { ok: true, seconds: 960, started: at(0), ended: at(16) },
+        v2: { ok: true, seconds: 1080, started: at(0), ended: at(18) },
+        orders: { ok: true, seconds: 600, started: at(60), ended: at(70) },
+        review: { ok: true, seconds: 300, started: at(71), ended: at(76) },
+      },
+    }),
+  );
+  const t = timeline(out);
+  assert.deepEqual(t.agents.map((a) => a.label), ["system-v1", "system-v2", "screen-orders", "review"]);
+  assert.equal(t.wallMinutes, 76);
+  assert.equal(t.agentPathMinutes, 18 + 10 + 5);
+  assert.equal(t.agentMinutes, 16 + 18 + 10 + 5);
+  assert.equal(t.costUsd, 5.5);
+  assert.deepEqual(t.waits.map((w) => [w.minutes, w.before]), [[42, "screen-orders"]], "a minute of checks between screens and review isn't a wait");
+  assert.equal(t.agents.find((a) => a.label === "review").streamed, false, "a run without a stream still shows");
+  assert.equal(t.agents[0].tools[0].detail, "SYSTEM.md");
 });
