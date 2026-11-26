@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Hub</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font: 15px/20px system-ui, sans-serif; color: #1d1b18; background: #f3f2ee; margin: 0; }
+  .app { display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100vh; }
+  .side { display: flex; flex-direction: column; height: 100vh; overflow: hidden; border-right: 1px solid #c9c6bd; padding: 0 12px 16px; }
+  /* fixed: the header keeps its height, and the list is the one region that gives way and scrolls */
+  .brand { flex: none; height: 64px; display: flex; align-items: center; padding: 0 12px; margin: 0 -12px 16px; border-bottom: 1px solid #c9c6bd; }
+  .list { flex: 1; min-height: 0; overflow-y: auto; }
+  .side a { display: flex; align-items: center; height: 36px; padding: 0 12px; margin-bottom: 4px; color: #1d1b18; text-decoration: none; }
+  .foot { padding: 12px; color: #55524b; font-size: 13px; }
+  main { padding: 24px 32px; overflow: auto; }
+  h1 { font-size: 28px; line-height: 34px; margin: 0 0 12px; }
+  .primary { height: 44px; padding: 0 16px; border: 1px solid transparent; border-radius: 4px; color: #fff; font: 500 15px/20px system-ui, sans-serif;
+    background: linear-gradient(90deg, #8a2d5c, #3a2590) border-box; cursor: pointer; }
+  .primary:focus-visible { outline: 2px solid #1d1b18; outline-offset: 2px; }
+</style></head>
+<body><div class="app">
+  <nav class="side" aria-label="Sections">
+    <div class="brand"><b>Hub</b></div>
+    <div class="list">
+      <a href="#home">Home</a><a href="#goals">Goals</a><a href="#inbox">Inbox</a><a href="#posts">Posts</a><a href="#releases">Releases</a>
+      <a href="#shows">Shows</a><a href="#studio">Studio</a><a href="#money">Money</a><a href="#people">People</a><a href="#settings">Settings</a>
+    </div>
+    <div class="foot">Synced 8:30 PM</div>
+  </nav>
+  <main><h1>Home</h1><p>Four orders are waiting to be confirmed, and two shows need an answer by Friday.</p><button class="primary" type="button">Add milestone</button></main>
+</div></body></html>

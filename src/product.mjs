@@ -206,6 +206,37 @@ export function polishPrompt(state, notes, round = 1) {
   });
 }
 
+/**
+ * NOTES.jsonl, the ledger: one line for each note a person sent and each thing the agent found on the way, with
+ * its kind (defect or decision), a tag for the kind of thing, and the tells rule that flags it, if one does.
+ * Lines that don't parse are skipped.
+ */
+export function readLedger(file) {
+  if (!fs.existsSync(file)) return [];
+  return fs.readFileSync(file, "utf8").split("\n").map((l) => l.trim()).filter(Boolean).flatMap((l) => {
+    try {
+      const e = JSON.parse(l);
+      return e && typeof e === "object" && typeof e.note === "string" ? [e] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/** One round of the ledger in counts: what the person had to say, split by kind, and what was found besides. */
+export function tallyNotes(entries, round) {
+  const inRound = entries.filter((e) => Number(e.round) === round);
+  const person = inRound.filter((e) => e.from !== "found");
+  return {
+    defects: person.filter((e) => e.kind === "defect").length,
+    decisions: person.filter((e) => e.kind === "decision").length,
+    found: inRound.filter((e) => e.from === "found").length,
+  };
+}
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const tallyLine = (t) => (t && t.defects + t.decisions + t.found ? ` · your notes: ${plural(t.defects, "defect")}, ${plural(t.decisions, "decision")}; found ${t.found} more` : "");
+
 /** Agents run only node, so deletions they want come as DELETE.txt; only files inside the product go. */
 function applyDeletions(product) {
   const list = path.join(product, "DELETE.txt");
@@ -233,13 +264,13 @@ function writeReport(out, state) {
       "",
       `- Before review: ${state.result.before}`,
       `- After review: ${state.result.after}`,
-      ...rounds.map((r, i) => `- After your notes, round ${i + 1}: ${r.after}${r.run.ok ? "" : ` (agent stopped: ${r.run.error})`}`),
+      ...rounds.map((r, i) => `- After your notes, round ${i + 1}: ${r.after}${tallyLine(r.ledger)}${r.run.ok ? "" : ` (agent stopped: ${r.run.error})`}`),
       "",
       "| Screen | Job | Screenshot |",
       "|---|---|---|",
       ...state.screens.map((s) => `| [${s.id}](product/screens/${s.id}.html) | ${s.job} | ![${s.id}](product/shots/screens_${s.id}.html.png) |`),
       "",
-      `What the review changed: [REVIEW.md](product/REVIEW.md).${rounds.length ? " What your notes changed: [POLISH.md](product/POLISH.md)." : ""} The system: [SYSTEM.md](product/SYSTEM.md), [CONTRACTS.md](product/CONTRACTS.md).`,
+      `What the review changed: [REVIEW.md](product/REVIEW.md).${rounds.length ? " What your notes changed: [POLISH.md](product/POLISH.md), and what kind each was: [NOTES.jsonl](product/NOTES.jsonl)." : ""} The system: [SYSTEM.md](product/SYSTEM.md), [CONTRACTS.md](product/CONTRACTS.md).`,
       "",
       `Send it back with notes: \`tells make --resume ${display(out)} --revise product --notes "<what to change>"\``,
       "",
@@ -574,10 +605,11 @@ export async function run(argv) {
     if (setAside) state.proposed = { ...(state.proposed ?? {}), [`polish-${n}`]: setAside };
     tells(["measure", "screens", "--shots", "shots", "--json"], product);
     const after = audit(product, state);
-    state.polishes = [...(state.polishes ?? []), { notes, run: r, deleted: removed, after: line(after), at: new Date().toISOString() }];
+    const ledger = tallyNotes(readLedger(path.join(product, "NOTES.jsonl")), n);
+    state.polishes = [...(state.polishes ?? []), { notes, run: r, deleted: removed, after: line(after), ledger, at: new Date().toISOString() }];
     save(out, state);
     writeReport(out, state);
-    say(`${paint.bold("Done")}  ${paint.dim(line(after))}`);
+    say(`${paint.bold("Done")}  ${paint.dim(line(after) + tallyLine(ledger))}`);
     for (const s of state.screens) say(`  ${display(path.join(product, "shots", `screens_${s.id}.html.png`))}`);
     if (setAside) say(paint.yellow(`  set aside: allow ${Object.keys(setAside).join(", ")} (product/.tellsrc.proposed)`));
     say(paint.dim(`What changed: ${display(path.join(product, "POLISH.md"))}. Again: tells make --resume ${display(out)} --revise product --notes "<what to change>"`));

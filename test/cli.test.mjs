@@ -223,5 +223,5 @@ test("render gets through every fixture in one run", { skip: skipChrome }, () =>
   const r = tells(["render", fixtures, "--json"], { timeout: 180_000 });
   assert.ok(r.stdout, r.stderr);
   assert.ok(existsSync(fixtures));
-  assert.equal(JSON.parse(r.stdout).targets.length, 68);
+  assert.equal(JSON.parse(r.stdout).targets.length, 71);
 });

@@ -220,7 +220,8 @@ test("a built product goes back with --revise product: notes in, deletions and e
   const state = JSON.parse(readFileSync(path.join(out, "product.json"), "utf8"));
   assert.equal(state.polishes.length, 1);
   assert.deepEqual(state.polishes[0].deleted, ["screens/old.css"]);
-  assert.match(readFileSync(path.join(out, "REPORT.md"), "utf8"), /After your notes, round 1: consistent/);
+  assert.match(readFileSync(path.join(out, "REPORT.md"), "utf8"), /After your notes, round 1: consistent.* · your notes: 1 defect, 0 decisions; found 1 more/);
+  assert.deepEqual(state.polishes[0].ledger, { defects: 1, decisions: 0, found: 1 }, "a line that isn't JSON is skipped");
   assert.ok(existsSync(path.join(out, "POLISH-PROMPT-1.md")));
 
   tells("make", "--resume", out, "--revise", "product", "--notes", "the tabs sit too high", "--agent", polish);

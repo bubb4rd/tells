@@ -84,3 +84,17 @@ test("text inside a faded-out dialog and a labelled checkbox aren't flagged", { 
   assert.ok(!rules.includes("low-contrast"), rules.join(", "));
   assert.ok(!rules.includes("small-tap-target"), rules.join(", "));
 });
+
+test("a header that keeps its height, and a gradient painted under its border, are left alone", { skip }, () => {
+  const { out } = render(path.join(here, "fixtures", "render-ok", "squash-gradient-ok.html"));
+  const hits = out.hits.filter((h) => h.rule === "squashed-block" || h.rule === "gradient-edge");
+  assert.deepEqual(hits, [], hits.map((h) => `${h.rule}: ${h.where} ${h.detail}`).join("; "));
+});
+
+test("squashed-block reports the column once, with the window height it starts at", { skip }, () => {
+  const { out } = render(path.join(dir, "squashed-block.html"));
+  const hits = out.hits.filter((h) => h.rule === "squashed-block");
+  assert.equal(hits.length, 1, hits.map((h) => h.detail).join("; "));
+  assert.match(hits[0].where, /brand/);
+  assert.match(hits[0].detail, /64px tall, squashed to \d+px in a 500px-high window.*starts below about 5\d\dpx/);
+});

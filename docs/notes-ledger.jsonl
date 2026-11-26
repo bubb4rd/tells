@@ -1,0 +1,25 @@
+{"product":"roaster","round":1,"stage":"retro","note":"It's boring, the visualizations are the same, it feels like a chore to use","from":"person","kind":"defect","tag":"same-shape","rule":"one-shape"}
+{"product":"roaster","round":2,"stage":"checkpoint","note":"The padding gets cut off above (Orders tabs)","from":"person","kind":"defect","tag":"label-alignment","rule":"off-centre-label"}
+{"product":"roaster","round":3,"stage":"polish 1","note":"Inventory: the stock lines are nearly flat in very tall rows, so the slope says little","from":"person","kind":"defect","tag":"flat-chart","rule":null}
+{"product":"roaster","round":3,"stage":"polish 1","note":"Roasts: the week calendar is mostly empty grid, and the drum names repeat under every day","from":"person","kind":"defect","tag":"empty-chart-space","rule":null}
+{"product":"roaster","round":3,"stage":"polish 1","note":"Customers: the $0 / $50 / $100 / $150 scale is cramped and collides at $150","from":"person","kind":"defect","tag":"label-collision","rule":null}
+{"product":"roaster","round":3,"stage":"polish 1","note":"Today: 17:00 ran to the panel's edge","from":"found","kind":"defect","tag":"label-overflow","rule":null}
+{"product":"roaster","round":3,"stage":"polish 1","note":"Event labels crossed the roast curve","from":"found","kind":"defect","tag":"label-collision","rule":null}
+{"product":"roaster","round":3,"stage":"polish 1","note":"Read-only lists kept an empty leading column","from":"found","kind":"defect","tag":"empty-column","rule":null}
+{"product":"roaster","round":3,"stage":"polish 1","note":"An order's text was squeezed beside its status and button","from":"found","kind":"defect","tag":"squeezed-text","rule":null}
+{"product":"roaster","round":4,"stage":"polish 2","note":"Inventory: the stock scales run below zero (-40 kg, -127 kg)","from":"person","kind":"defect","tag":"impossible-value","rule":null}
+{"product":"roaster","round":4,"stage":"polish 2","note":"Packing could take shelf bags below zero","from":"found","kind":"defect","tag":"impossible-value","rule":null}
+{"product":"roaster","round":4,"stage":"polish 2","note":"A run-out label sat across the descending line","from":"found","kind":"defect","tag":"label-collision","rule":null}
+{"product":"dame-hub","round":1,"stage":"hand","note":"Home: sections for Instagram, streaming, shows, releases, in the client's colours; keep the charts","from":"person","kind":"decision","tag":"structure","rule":null}
+{"product":"dame-hub","round":2,"stage":"hand","note":"Make the four sections the focus of home, with next up beside them","from":"person","kind":"decision","tag":"structure","rule":null}
+{"product":"dame-hub","round":3,"stage":"hand","note":"Drop the cards: separate with lines and spacing","from":"person","kind":"decision","tag":"surface-style","rule":null}
+{"product":"dame-hub","round":4,"stage":"hand","note":"Standardise block heights: quadrants equal, next up two of them","from":"person","kind":"decision","tag":"height-unit","rule":null}
+{"product":"dame-hub","round":5,"stage":"hand","note":"The photo should be one quadrant high, the dates fill the rest","from":"person","kind":"decision","tag":"height-unit","rule":null}
+{"product":"dame-hub","round":5,"stage":"hand","note":"Return the headline band to its own height","from":"person","kind":"decision","tag":"height-unit","rule":null}
+{"product":"dame-hub","round":6,"stage":"hand","note":"There are lines missing on the goals page","from":"person","kind":"defect","tag":"missing-separator","rule":null}
+{"product":"dame-hub","round":6,"stage":"hand","note":"If there's nothing below, it shouldn't scroll: it should just stop","from":"person","kind":"decision","tag":"scroll-tail","rule":null}
+{"product":"dame-hub","round":7,"stage":"hand","note":"A slight hiccup with the gradient on buttons: a little border there","from":"person","kind":"defect","tag":"gradient-edge","rule":"gradient-edge"}
+{"product":"dame-hub","round":7,"stage":"hand","note":"A colour for releases and studio that pops but doesn't take over","from":"person","kind":"decision","tag":"section-colour","rule":null}
+{"product":"dame-hub","round":7,"stage":"hand","note":"Move the sidebar toggle into the sidebar","from":"person","kind":"decision","tag":"placement","rule":null}
+{"product":"dame-hub","round":7,"stage":"hand","note":"The top headline gridline is missing on every page","from":"person","kind":"defect","tag":"missing-separator","rule":null}
+{"product":"dame-hub","round":7,"stage":"hand","note":"The sidebar header shrank in a short window","from":"found","kind":"defect","tag":"squashed-block","rule":"squashed-block"}

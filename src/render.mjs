@@ -21,6 +21,9 @@ const DEFAULT_PATHS = ["."];
 const SKIP_DIRS = new Set(["node_modules", ".next", ".git", "dist", "build", "out", "coverage", "vendor", "shots", "_assets"]);
 const DEFAULT_WIDTHS = [1440, 960, 390];
 const VIEWPORT_HEIGHT = 900;
+// squashed-block compares a tall window with a short one: a laptop with the dock, bookmarks bar and devtools open.
+const SQUASH_TALL = 1600;
+const SQUASH_SHORT = 500;
 const CATEGORIES = ["layout", "color", "type", "mobile", "surfaces", "media", "a11y"];
 
 const RULES = [
@@ -28,6 +31,7 @@ const RULES = [
   { id: "clipped-text", category: "layout", severity: "warn", fix: "Prevent text clipping or descender cut-off inside overflow:hidden containers (check wrapping, width, and line-height)." },
   { id: "cramped-padding", category: "layout", severity: "warn", fix: "Give bordered/surface containers at least 8px padding on non-zero sides." },
   { id: "off-centre-label", category: "layout", severity: "warn", fix: "Centre a control's one-line label in its height (align-items: center, or equal padding); text stuck to one edge reads as cut off." },
+  { id: "squashed-block", category: "layout", severity: "warn", fix: "Stop a fixed-size block shrinking when its column runs out of room in a short window: give it flex: none (or flex-shrink: 0), and let one region of the column scroll instead." },
   { id: "tall-top-nav", category: "layout", severity: "warn", fix: "Keep desktop top navigation on a single line and <= 80px tall." },
   { id: "icon-feature-grid", category: "layout", severity: "error", fix: "Replace the 3–4 card icon-on-top feature grid with real product proof, a table, or copy that fits the subject." },
   { id: "stat-strip", category: "layout", severity: "warn", fix: "Replace the row of identical big-number + tiny-label stat blocks with one focal number and the context or chart that explains it." },
@@ -43,6 +47,7 @@ const RULES = [
   { id: "mono-costume", category: "type", severity: "warn", fix: "Reserve monospace for code, tabular figures, and copyable values (IDs, hex, paths), not prose or uppercase labels." },
   { id: "small-tap-target", category: "mobile", severity: "warn", fix: "Make mobile interactive controls at least 44x44px (or expand their hit area)." },
   { id: "concentric-radius", category: "surfaces", severity: "warn", fix: "Match concentric radii on tightly inset surfaces (outerRadius = innerRadius + padding + borderWidth)." },
+  { id: "gradient-edge", category: "surfaces", severity: "warn", fix: "Paint the gradient under the border too (background-origin: border-box, or `background: <gradient> border-box`). From the padding box it repeats into a transparent border, and its far end shows as a strip down the edge." },
   { id: "split-surface", category: "surfaces", severity: "error", fix: "Keep primary navigation and canvas on cohesive surfaces; avoid pairing a dark sidebar with a light page." },
   { id: "segmented-thumb", category: "surfaces", severity: "error", fix: "No raised pill on a grey track for tabs or filters. Mark the chosen option with ink and weight, or a line on the edge it sits on, in the same language as the rest of the screen." },
   { id: "nested-cards", category: "surfaces", severity: "error", fix: "Avoid cards inside cards. Use spacing, typography or a single surface level instead of nested boxes." },
@@ -112,7 +117,7 @@ function walkHtml(target, out) {
 // ---------------------------------------------------------------------------
 // In-page audit payload (executed via Runtime.evaluate)
 
-function inPageAudit(viewportWidth) {
+function inPageAudit(viewportWidth, mode = "audit") {
   const findings = [];
   const allowed = [];
 
@@ -336,6 +341,61 @@ function inPageAudit(viewportWidth) {
     return op;
   };
 
+  // squashed-block runs in two passes over a page that's already loaded: "squash-mark" in a tall window records
+  // every fixed-size block in a column whose height follows the window, "squash-check" in a short one finds those
+  // that shrank. A block with flex-grow is meant to take up the slack, and a scroll region is meant to shrink.
+  if (mode === "squash-mark") {
+    const marks = [];
+    for (const el of document.querySelectorAll("body *")) {
+      const parent = el.parentElement;
+      if (!parent || inHiddenTree(el)) continue;
+      const pcs = getComputedStyle(parent);
+      if (!/flex/.test(pcs.display) || !pcs.flexDirection.startsWith("column")) continue;
+      const cs = getComputedStyle(el);
+      if (cs.position === "absolute" || cs.position === "fixed" || cs.display === "none") continue;
+      if (parseFloat(cs.flexGrow) > 0 || parseFloat(cs.flexShrink) === 0) continue;
+      if (/(auto|scroll)/.test(cs.overflowY)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.height < 16 || r.width < 16) continue;
+      marks.push({ el, h: r.height, ph: parent.getBoundingClientRect().height });
+    }
+    window.__tellsSquash = { marks };
+    return { findings, allowed, fingerprint: null };
+  }
+  if (mode === "squash-check") {
+    const { marks = [] } = window.__tellsSquash || {};
+    // One hit per column: the shortfall is shared out across every block that can shrink, so each one may lose
+    // only a few pixels. Report the column at the block that lost the most.
+    const columns = new Map();
+    for (const m of marks) {
+      if (!m.el.isConnected) continue;
+      const parent = m.el.parentElement;
+      if (parent.getBoundingClientRect().height > m.ph - 4) continue;
+      const lost = m.h - m.el.getBoundingClientRect().height;
+      const col = columns.get(parent) || { n: 0, worst: null, short: 0 };
+      // Every pixel the column's blocks gave up is room it was short; auto margins are already 0 here.
+      if (lost > 0) col.short += lost;
+      if (lost < 2) { columns.set(parent, col); continue; }
+      col.n++;
+      if (!col.worst || lost > col.worst.lost) col.worst = { el: m.el, h: m.h, lost };
+      columns.set(parent, col);
+    }
+    const flagged = [];
+    for (const [parent, col] of columns) {
+      if (!col.worst) continue;
+      if (flagged.some((f) => f.contains(parent))) continue;
+      flagged.push(parent);
+      const { el, h, lost } = col.worst;
+      // The column follows the window, so it fits again once the window is as much taller as it was short.
+      const below = Math.round(window.innerHeight + col.short);
+      const others = col.n > 1 ? `, and ${col.n - 1} more block${col.n > 2 ? "s" : ""} in its column` : "";
+      add("squashed-block", describe(el), `${Math.round(h)}px tall, squashed to ${Math.round(h - lost)}px in a ${window.innerHeight}px-high window${others} (starts below about ${below}px)`, el);
+      if (flagged.length >= 6) break;
+    }
+    delete window.__tellsSquash;
+    return { findings, allowed, fingerprint: null };
+  }
+
   // 1. Horizontal overflow
   const docOverflow = document.documentElement.scrollWidth - window.innerWidth;
   if (docOverflow > 1) {
@@ -355,6 +415,7 @@ function inPageAudit(viewportWidth) {
   const seenTap = new Set();
   const seenCramped = new Set();
   const seenOffCentre = new Set();
+  const seenGradientEdge = new Set();
   const seenConcentric = new Set();
   const seenMono = new Set();
   const avatarSources = new Map();
@@ -552,6 +613,22 @@ function inPageAudit(viewportWidth) {
               seenOffCentre.add(key);
               add("off-centre-label", describe(el), `${Math.round(above)}px above the text, ${Math.round(below)}px below`, el);
             }
+          }
+        }
+      }
+    }
+
+    // A gradient painted from the padding box (the default) repeats into a transparent or see-through border, so its
+    // far end shows as a strip down the opposite edge. Only the top background layer is read.
+    if (rect.width >= 16 && rect.height >= 12 && /gradient\(/.test(cs.backgroundImage)) {
+      const first = (v) => String(v).split(",")[0].trim();
+      if (first(cs.backgroundOrigin) === "padding-box" && first(cs.backgroundClip) === "border-box") {
+        const sides = ["Top", "Right", "Bottom", "Left"].filter((side) => parseFloat(cs[`border${side}Width`]) > 0 && cs[`border${side}Style`] !== "none" && parseColor(cs[`border${side}Color`])[3] < 0.95);
+        if (sides.length) {
+          const key = `${tag}.${el.className}`;
+          if (!seenGradientEdge.has(key) && seenGradientEdge.size < 6) {
+            seenGradientEdge.add(key);
+            add("gradient-edge", describe(el), `${parseFloat(cs[`border${sides[0]}Width`])}px see-through border on ${sides.map((x) => x.toLowerCase()).join(", ")}, gradient starts inside it`, el);
           }
         }
       }
@@ -1332,6 +1409,7 @@ async function auditTarget(browser, url, label, widths, onlyRule, theme = "light
   const allowed = [];
   let fingerprint = null;
   let fingerprintWidth = 0;
+  let squashDone = false;
 
   try {
     await browser.send("Page.enable", {}, sessionId);
@@ -1364,6 +1442,18 @@ async function auditTarget(browser, url, label, widths, onlyRule, theme = "light
       }
 
       const payload = evalRes.result?.value || { findings: [], allowed: [], fingerprint: null };
+      // squashed-block: once, at the first desktop width, on the page as loaded. Tall window, then short.
+      if (width >= 960 && !squashDone && (!onlyRule || onlyRule === "squashed-block")) {
+        squashDone = true;
+        for (const [height, mode] of [[SQUASH_TALL, "squash-mark"], [SQUASH_SHORT, "squash-check"]]) {
+          await browser.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
+          await browser.send("Runtime.evaluate", { expression: SETTLE_EXPR, awaitPromise: true }, sessionId);
+          const res = await browser.send("Runtime.evaluate", { expression: `(${inPageAudit.toString()})(${width}, "${mode}")`, returnByValue: true }, sessionId);
+          if (res.exceptionDetails) throw new Error(res.exceptionDetails.text || "Evaluation failed");
+          payload.findings.push(...(res.result?.value?.findings || []));
+          payload.allowed = [...(payload.allowed || []), ...(res.result?.value?.allowed || [])];
+        }
+      }
       if (payload.fingerprint && width >= fingerprintWidth) {
         fingerprint = { target: label, width, ...payload.fingerprint };
         fingerprintWidth = width;
