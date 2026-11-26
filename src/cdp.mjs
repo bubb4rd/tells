@@ -123,6 +123,15 @@ export function serveRootFor(files, cwd = ROOT) {
   return path.dirname(common) === common ? common : path.dirname(common);
 }
 
+/**
+ * A route in a single-page app is its file plus a hash: `index.html#/inbox`. Split it, so the file can be walked and
+ * served and the hash added back to the URL. A plain path comes back with an empty hash.
+ */
+export function splitRoute(inp) {
+  const i = inp.indexOf("#");
+  return i < 0 ? { file: inp, hash: "" } : { file: inp.slice(0, i), hash: inp.slice(i) };
+}
+
 export function commonDir(files) {
   const parts = files.map((f) => path.dirname(f).split(path.sep));
   const first = parts[0];

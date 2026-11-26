@@ -36,3 +36,11 @@ test("a lone emoji never leads", { skip }, async () => {
   const [m] = await measurePages([path.join(here, "..", "docs", "shots", "hero.html")]);
   assert.match(m.lead.text, /\p{L}/u);
 });
+
+test("measure shoots a route of a single-page app under its own name", { skip }, async () => {
+  const shots = mkdtempSync(path.join(tmpdir(), "tells-measure-spa-"));
+  const [m] = await measurePages([path.join(here, "fixtures", "spa", "index.html#/b")], { shots });
+  assert.ok(!m.error, m.error);
+  assert.match(m.target, /index\.html#\/b$/);
+  assert.match(path.basename(m.shot), /index\.html_b\.png$/);
+});

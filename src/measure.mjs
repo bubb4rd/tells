@@ -14,7 +14,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR, emulateTheme, themeOf, navigate } from "./cdp.mjs";
+import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR, emulateTheme, themeOf, navigate, splitRoute } from "./cdp.mjs";
 import { intFlag } from "./cli.mjs";
 
 const ROOT = process.cwd();
@@ -279,9 +279,11 @@ export async function measurePages(inputs, { width = 1440, height = 900, shots =
   for (const inp of inputs) {
     if (/^https?:\/\//i.test(inp)) targets.push({ kind: "url", url: inp, label: inp });
     else {
+      // index.html#/inbox: one route of a single-page app; its shot is named index.html_inbox.png
+      const { file, hash } = splitRoute(inp);
       const files = [];
-      walkHtml(path.resolve(ROOT, inp), files);
-      for (const f of files) targets.push({ kind: "file", file: f, label: path.relative(ROOT, f) || f });
+      walkHtml(path.resolve(ROOT, file), files);
+      for (const f of hash ? files.slice(0, 1) : files) targets.push({ kind: "file", file: f, hash, label: (path.relative(ROOT, f) || f) + hash });
     }
   }
   const files = targets.filter((t) => t.kind === "file").map((t) => t.file);
@@ -294,7 +296,7 @@ export async function measurePages(inputs, { width = 1440, height = 900, shots =
   try {
     await browser.ready();
     for (const t of targets) {
-      const url = t.kind === "url" ? t.url : fileToUrl(srv.baseUrl, serveRoot, t.file);
+      const url = t.kind === "url" ? t.url : fileToUrl(srv.baseUrl, serveRoot, t.file) + (t.hash ?? "");
       const { targetId } = await browser.send("Target.createTarget", { url: "about:blank" });
       const { sessionId } = await browser.send("Target.attachToTarget", { targetId, flatten: true });
       try {
@@ -366,7 +368,7 @@ export async function run(argv = process.argv.slice(2)) {
   const inputs = positional.length ? positional : ["."];
   const theme = themeOf(flags);
   const width = intFlag("width", flags.width, { min: 240, max: 4096, fallback: 1440 });
-  const pages = inputs.filter((i) => /^https?:\/\//i.test(i) || walkHtml(path.resolve(ROOT, i), []).length);
+  const pages = inputs.filter((i) => /^https?:\/\//i.test(i) || walkHtml(path.resolve(ROOT, splitRoute(i).file), []).length);
   if (!pages.length) throw new Error(`no HTML pages in ${inputs.join(", ")}. measure loads .html files and http(s) URLs.`);
   const results = await measurePages(inputs, {
     width,
