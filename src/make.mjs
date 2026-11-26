@@ -160,7 +160,7 @@ function report({ brief, out, ranked, runs, refs }) {
 
 export async function run(argv = process.argv.slice(2)) {
   // A product of several screens is built system first: src/product.mjs
-  if (argv.includes("--product") || argv.includes("--resume")) return (await import("./product.mjs")).run(argv);
+  if (argv.includes("--product") || argv.includes("--resume") || argv.includes("--from")) return (await import("./product.mjs")).run(argv);
   const { positional, flags } = parseArgs(argv);
   const valueOf = (name) => {
     const i = argv.indexOf(`--${name}`);

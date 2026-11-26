@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -43,4 +43,13 @@ test("measure shoots a route of a single-page app under its own name", { skip },
   assert.ok(!m.error, m.error);
   assert.match(m.target, /index\.html#\/b$/);
   assert.match(path.basename(m.shot), /index\.html_b\.png$/);
+});
+
+test("measure --full shows the whole of a screen that scrolls inside its app shell", { skip }, async () => {
+  const shots = mkdtempSync(path.join(tmpdir(), "tells-measure-shell-"));
+  const [m] = await measurePages([path.join(here, "fixtures", "spa", "shell.html")], { shots, fullPage: true });
+  assert.ok(!m.error, m.error);
+  const png = readFileSync(m.shot);
+  const height = png.readUInt32BE(20); // IHDR
+  assert.ok(height >= 1650, `shot is ${height}px tall; the panel holds about 1,700px`);
 });

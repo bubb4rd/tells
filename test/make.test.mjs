@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { ANGLES, isLanding, prompts, studyPrompts } from "../src/make.mjs";
+import { polishPrompt } from "../src/product.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const bin = path.join(here, "..", "bin", "tells.mjs");
@@ -226,4 +227,171 @@ test("a built product goes back with --revise product: notes in, deletions and e
 
   tells("make", "--resume", out, "--revise", "product", "--notes", "the tabs sit too high", "--agent", polish);
   assert.match(readFileSync(path.join(product, "POLISH.md"), "utf8"), /## Round 1[\s\S]*## Round 2/);
+});
+
+test("--from takes a product in: copied, never written to, baselined, described, and anything else put back", { skip: skipChrome }, async () => {
+  const { snapshot, readTokens, diffTokens } = await import("../src/ingest.mjs");
+  const source = path.join(here, "fixtures", "make", "existing-spa");
+  const before = snapshot(source);
+  const out = path.join(mkdtempSync(path.join(tmpdir(), "tells-from-")), "run");
+  const ingest = `"${process.execPath}" "${path.join(here, "fixtures", "make", "fake-ingest.mjs")}"`;
+  const r = tells("make", "--from", source, "--approved", "home,orders", "--out", out, "--agent", ingest);
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  assert.deepEqual(snapshot(source), before, "the source is never written to");
+
+  const product = path.join(out, "product");
+  const state = JSON.parse(readFileSync(path.join(out, "product.json"), "utf8"));
+  assert.equal(state.stage, "done");
+  assert.equal(state.brief, "Roastery Hub", "the brief comes from the entry page's title");
+  assert.equal(state.layout, "spa");
+  assert.deepEqual(state.manifest.map((s) => [s.id, s.built, s.inShell, s.files.join(" ")]), [
+    ["home", true, true, ""],
+    ["orders", true, false, "screens/orders.js"],
+    ["stock", true, false, "data/stock.js screens/stock.js"],
+    ["later", false, true, ""],
+  ]);
+  assert.deepEqual(state.leads, ["home", "orders"]);
+  assert.deepEqual(state.skipped, ["notes.v2.css.bak"]);
+  assert.ok(!existsSync(path.join(product, "notes.v2.css.bak")), "scratch isn't copied");
+
+  for (const theme of ["light", "dark"]) for (const id of ["home", "orders", "stock"]) assert.ok(existsSync(path.join(product, "baseline", theme, `index.html_${id}.png`)), `${theme} ${id}`);
+  assert.equal(state.baseline.tokens[':root[data-theme="light"]']["--accent"], "#17703A");
+  assert.ok(state.baseline.system, "consistent's system is kept as the baseline");
+
+  assert.deepEqual(state.ingest.reverted.map((x) => `${x.file} ${x.was}`).sort(), ["data.js deleted", "extra.js added", "styles.css changed"]);
+  assert.deepEqual(diffTokens(state.baseline.tokens, readTokens(product)), [], "the agent's token change is put back");
+  for (const doc of ["SYSTEM.md", "CONTRACTS.md", "APPROVED.md", "PRODUCT.md"]) assert.ok(existsSync(path.join(product, doc)), doc);
+  const report = readFileSync(path.join(out, "REPORT.md"), "utf8");
+  assert.match(report, /Taken in from/);
+  assert.match(report, /\| later \| Later \| not built yet/);
+  assert.match(report, /`styles\.css` \(changed\)/);
+
+  // Notes on a product taken in go to its routes, keep the approved decisions, and skip the blanket fix.
+  const prompt = polishPrompt(state, "the tabs sit too high");
+  assert.match(prompt, /APPROVED\.md/);
+  assert.match(prompt, /render index\.html#\/home index\.html#\/orders index\.html#\/stock --strict/);
+  assert.match(prompt, /--lead index\.html#\/home --lead index\.html#\/orders --strict/);
+  assert.doesNotMatch(prompt, /fix \./);
+});
+
+test("--from names what it couldn't find", { skip: skipChrome }, () => {
+  const source = path.join(here, "fixtures", "make", "existing-spa");
+  const out = path.join(mkdtempSync(path.join(tmpdir(), "tells-from-")), "run");
+  const bad = tells("make", "--from", source, "--screens", "orders: wholesale; roasts: the drum", "--out", out, "--dry-run");
+  assert.equal(bad.status, 2);
+  assert.match(bad.stderr, /no screen called "roasts".*It has: home, orders, stock, later/);
+  const unbuilt = tells("make", "--from", source, "--approved", "later", "--out", out, "--dry-run");
+  assert.equal(unbuilt.status, 2);
+  assert.match(unbuilt.stderr, /"later", which isn't a built screen/);
+  assert.ok(!existsSync(out), "nothing is copied when the input is wrong");
+});
+
+test("tokens are read by selector block, and a diff names each change", async () => {
+  const { readTokens, diffTokens } = await import("../src/ingest.mjs");
+  const tokens = readTokens(path.join(here, "fixtures", "make", "existing-spa"));
+  assert.deepEqual(Object.keys(tokens), [':root[data-theme="light"]', ':root[data-theme="dark"]'], "the .bak file isn't read");
+  const after = structuredClone(tokens);
+  after[':root[data-theme="dark"]']["--accent"] = "#FF6FB5";
+  delete after[':root[data-theme="light"]']["--ink"];
+  assert.deepEqual(diffTokens(tokens, after), [
+    { selector: ':root[data-theme="light"]', token: "--ink", was: "#1D1B18", now: null },
+    { selector: ':root[data-theme="dark"]', token: "--accent", was: "#3FBF6A", now: "#FF6FB5" },
+  ]);
+});
+
+test("--revise <screen> changes one screen of a product taken in, guarded, and --undo puts it back", { skip: skipChrome }, () => {
+  const source = path.join(here, "fixtures", "make", "existing-spa");
+  const out = path.join(mkdtempSync(path.join(tmpdir(), "tells-restructure-")), "run");
+  const node = (f) => `"${process.execPath}" "${path.join(here, "fixtures", "make", f)}"`;
+  assert.equal(tells("make", "--from", source, "--out", out, "--agent", node("fake-ingest.mjs")).status, 0);
+  const product = path.join(out, "product");
+  const orders = () => readFileSync(path.join(product, "screens", "orders.js"), "utf8");
+  const accent = () => /--accent: (#\w+)/.exec(readFileSync(path.join(product, "styles.css"), "utf8"))[1];
+  const state = () => JSON.parse(readFileSync(path.join(out, "product.json"), "utf8"));
+
+  assert.equal(tells("make", "--resume", out, "--revise", "nothere", "--notes", "x").status, 2, "an unknown screen is a usage error");
+
+  // A clean round: only Orders changes, and the other screens' screenshots don't move.
+  const r = tells("make", "--resume", out, "--revise", "orders", "--notes", "shorter line", "--agent", node("fake-restructure.mjs"));
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  assert.match(orders(), /orders wait/);
+  const round = state().polishes[0];
+  assert.equal(round.screen, "orders");
+  assert.ok(existsSync(path.join(out, "rounds", "1", "before", "screens", "orders.js")), "a snapshot is taken before the round");
+  const moved = Object.fromEntries(round.shots.map((x) => [x.id, x.changed]));
+  assert.ok(moved.orders > 0, "the restructured screen changed");
+  assert.equal(moved.home, 0, "home didn't move");
+  assert.equal(moved.stock, 0, "stock didn't move");
+  assert.match(round.after, /new since it came in/);
+  assert.match(readFileSync(path.join(out, "REPORT.md"), "utf8"), /After your notes on orders, round 1/);
+
+  // --undo puts the product back as it was before the round.
+  assert.equal(tells("make", "--resume", out, "--undo").status, 0);
+  assert.match(orders(), /orders are waiting to be confirmed/);
+  assert.equal(state().polishes.length, 0);
+
+  // A token changed and not listed: the agent gets a second turn, and puts it back.
+  const fixed = tells("make", "--resume", out, "--revise", "orders", "--notes", "sneak", "--agent", node("fake-restructure.mjs"));
+  assert.equal(fixed.status, 0, fixed.stderr + fixed.stdout);
+  assert.match(fixed.stdout, /--accent/);
+  assert.equal(accent(), "#17703A");
+  assert.equal(state().polishes[0].run.turns, 2);
+  assert.equal(tells("make", "--resume", out, "--undo").status, 0);
+
+  // Still there after the second turn: the whole round is put back, and the run fails.
+  const stuck = tells("make", "--resume", out, "--revise", "orders", "--notes", "sneak and stay", "--agent", node("fake-restructure.mjs"));
+  assert.equal(stuck.status, 1);
+  assert.equal(accent(), "#17703A");
+  assert.match(orders(), /orders are waiting to be confirmed/, "the round's other changes go too");
+  assert.match(readFileSync(path.join(out, "rounds", "1", "GUARD.md"), "utf8"), /--accent.*not listed/);
+  assert.equal(state().polishes.length, 0);
+});
+
+test("the guard names tokens the round didn't list, and other screens that drifted", async () => {
+  const { listedTokens, roundText, tokenViolations, traitViolations } = await import("../src/guard.mjs");
+  const log = "## Round 1\n\n### Tokens changed\n\n- `--q`: 336px, for the quadrants\n\n## Round 2\n\nOrders.\n\n### Tokens changed\n\n- `--accent`, the note asked for pink\n";
+  assert.deepEqual([...listedTokens(roundText(log, 2))], ["--accent"]);
+  assert.deepEqual([...listedTokens(roundText(log, 1))], ["--q"]);
+  const before = { ":root": { "--accent": "#17703A", "--ink": "#1D1B18" } };
+  const after = { ":root": { "--accent": "#FF6FB5", "--ink": "#000000" } };
+  assert.deepEqual(tokenViolations(before, after, listedTokens(roundText(log, 2))).map((v) => v.token), ["--ink"]);
+  // New names are the round's own; an approved name set again somewhere new overrides it there.
+  const added = { ...after, ":root": { ...before[":root"] }, ".home": { "--q": "336px", "--ink": "#FF0000" } };
+  assert.deepEqual(tokenViolations(before, added, new Set()).map((v) => `${v.selector} ${v.token}`), [".home --ink"]);
+
+  const traits = (h1, panel) => ({ families: ["apfel"], h1, h2: 20, page: [243, 242, 238], panel: { radius: 0, bg: "#f3f2ee", border: "#d2cfc6", ...panel }, marks: ["dots"], layout: "sidebar-main", accents: [4] });
+  const base = [{ target: "index.html#/home", traits: traits(28) }, { target: "index.html#/money", traits: traits(28) }];
+  const now = [{ target: "index.html#/home", traits: traits(40) }, { target: "index.html#/money", traits: traits(28, { radius: 12 }) }];
+  assert.deepEqual(traitViolations(base, now, new Set(["index.html#/home"])).map((v) => `${v.target} ${v.rule}`), ["index.html#/money drift-panel"]);
+});
+
+test("--carry lays one screen's layout onto others; --add builds a new screen the house way", { skip: skipChrome }, () => {
+  const source = path.join(here, "fixtures", "make", "existing-spa");
+  const out = path.join(mkdtempSync(path.join(tmpdir(), "tells-carry-")), "run");
+  const node = (f) => `"${process.execPath}" "${path.join(here, "fixtures", "make", f)}"`;
+  assert.equal(tells("make", "--from", source, "--out", out, "--agent", node("fake-ingest.mjs")).status, 0);
+  const product = path.join(out, "product");
+  const file = (f) => readFileSync(path.join(product, f), "utf8");
+  const state = () => JSON.parse(readFileSync(path.join(out, "product.json"), "utf8"));
+
+  assert.equal(tells("make", "--resume", out, "--carry", "nothere").status, 2);
+  assert.equal(tells("make", "--resume", out, "--carry", "orders", "--to", "orders").status, 2, "a screen isn't carried onto itself");
+  assert.equal(tells("make", "--resume", out, "--add", "orders: again").status, 2, "--add takes new screens");
+
+  const c = tells("make", "--resume", out, "--carry", "orders", "--to", "stock,home", "--agent", node("fake-carry.mjs"));
+  assert.equal(c.status, 0, c.stderr + c.stdout);
+  assert.ok(existsSync(path.join(product, "PATTERN.md")));
+  assert.match(file("screens/stock.js"), /ruled/, "a screen with its own files is laid in its copy, and its files come back");
+  assert.match(file("app.js"), /ruled/, "a screen the shell draws is laid in place");
+  assert.match(file("styles.css"), /#17703A/, "a shared file edited in a copy doesn't come back");
+  assert.equal(state().polishes[0].carry, "orders");
+  assert.deepEqual(state().polishes[0].to, ["stock", "home"]);
+
+  const a = tells("make", "--resume", out, "--add", "roasts: the week's batches", "--agent", node("fake-add.mjs"));
+  assert.equal(a.status, 0, a.stderr + a.stdout);
+  const roasts = state().manifest.find((x) => x.id === "roasts");
+  assert.deepEqual([roasts.built, roasts.target, roasts.files.join(" "), roasts.job], [true, "index.html#/roasts", "screens/roasts.js", "the week's batches"]);
+  assert.ok(state().screens.some((x) => x.id === "roasts"));
+  assert.ok(JSON.parse(file("screens.json")).some((x) => x.id === "roasts"));
+  assert.ok(existsSync(path.join(out, "rounds", "2", "shots", "index.html_roasts.png")));
 });
