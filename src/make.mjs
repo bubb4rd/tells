@@ -101,6 +101,18 @@ export function studyPrompts(brief, n, refs, { page = "product", assets = false,
   );
 }
 
+/**
+ * How to work in a tells run, appended to the default agent's system prompt. In the roaster baseline, 32 of the six
+ * agents' turns were refused (shell edits, `mkdir`, `cd … &&`, `T=…; node $T`, redirects) and each re-read
+ * tells' source to see how a check works. A refused turn costs a turn, and every turn re-reads all that came before.
+ */
+export const HABITS = `## How to work in this run
+
+- Change files only with Write and Edit. Write creates any folder it needs. Never sed, python, mkdir, or cat > / >>.
+- Bash runs one \`node\` command at a time, from the working folder, with full paths: \`node ${TELLS}/bin/tells.mjs check .\`. Anything else is refused and costs a turn: no \`cd … &&\`, no \`VAR=…;\` prefix, no \`;\` chains, no loops, no \`> file\` redirects.
+- If you need a script, Write it inside the working folder, run it with \`node <file>\`, and delete it when you're done. Nothing in /tmp.
+- tells' rules are in \`${TELLS}/rules/anti-slop.md\`, and every hit names its rule and its fix. Don't read tells' source (\`src/\`) to work out how a check works: change the page until the check passes, or keep the hit with a \`tells-ok\` and a reason.`;
+
 /** What a Claude Code `result` event says the run cost. */
 export function usageOf(result) {
   const u = result?.usage ?? {};
@@ -136,6 +148,8 @@ export function runAgent({ dir, prompt, agent, model, timeoutMs, stream = null, 
           // Only what the agent needs: none of your own hooks, plugins, MCP servers or skills. Each costs tokens
           // on every turn, and a hook that blocks a tool call costs a turn.
           "--setting-sources", "project,local", "--strict-mcp-config", "--disable-slash-commands",
+          // The same for every agent, so it caches with the rest of the system prompt.
+          "--append-system-prompt", HABITS,
           "--allowedTools", "Read,Write,Edit,Glob,Grep,Bash(node:*)",
           "--add-dir", TELLS,
           ...(model ? ["--model", model] : []),
