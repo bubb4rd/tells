@@ -30,7 +30,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { display, makePaint, parseArgs } from "./check.mjs";
 import { resolveReferences } from "./references.mjs";
-import { runAgent } from "./make.mjs";
+import { costLine, runAgent } from "./make.mjs";
 import { intFlag } from "./cli.mjs";
 import { copyProduct, discoverScreens, briefFrom, hasDarkTheme, readTokens, restoreExcept, INGEST_DOCS } from "./ingest.mjs";
 import { listedTokens, roundText, tokenViolations, traitViolations, newHits, diffShots } from "./guard.mjs";
@@ -393,10 +393,29 @@ function writeFromReport(out, state) {
       "",
       `The product as found: [SYSTEM.md](product/SYSTEM.md), [APPROVED.md](product/APPROVED.md), [PRODUCT.md](product/PRODUCT.md), [CONTRACTS.md](product/CONTRACTS.md).${rounds.length ? " What your notes changed: [POLISH.md](product/POLISH.md), and what kind each was: [NOTES.jsonl](product/NOTES.jsonl)." : ""}`,
       "",
+      ...costLines(state),
       `Send it notes on one screen: \`tells make --resume ${display(out)} --revise <screen> --notes "<what to change>"\`, or on all of it: \`--revise product\`. Undo the last round: \`--undo\`.`,
       "",
     ].join("\n"),
   );
+}
+
+const runsOf = (run) => (run ? (run.runs ? Object.values(run.runs) : [run]) : []);
+
+/** One line per stage: how many agents, how long, what they cost. */
+function costLines(state) {
+  const keys = Object.keys(state.runs ?? {});
+  const stages = [
+    ["Taken in", runsOf(state.ingest?.run)],
+    ["System", [...keys.filter((k) => /^v\d+$/.test(k)).map((k) => state.runs[k]), ...(state.revisions ?? []).map((r) => r.run)]],
+    ["Screens", keys.filter((k) => !/^v\d+$/.test(k) && k !== "review").map((k) => state.runs[k])],
+    ["Review", [state.runs?.review]],
+    ...(state.polishes ?? []).map((p, i) => [`Notes, round ${i + 1}`, [...runsOf(p.run), p.again]]),
+  ]
+    .map(([name, runs]) => [name, runs.filter(Boolean)])
+    .filter(([, runs]) => runs.length);
+  if (!stages.length) return [];
+  return ["## What the agents cost", "", ...stages.map(([name, runs]) => `- ${name}: ${costLine(runs)}`), `- All: ${costLine(stages.flatMap(([, runs]) => runs))}`, ""];
 }
 
 function writeReport(out, state) {
@@ -419,6 +438,7 @@ function writeReport(out, state) {
       "",
       `What the review changed: [REVIEW.md](product/REVIEW.md).${rounds.length ? " What your notes changed: [POLISH.md](product/POLISH.md), and what kind each was: [NOTES.jsonl](product/NOTES.jsonl)." : ""} The system: [SYSTEM.md](product/SYSTEM.md), [CONTRACTS.md](product/CONTRACTS.md).`,
       "",
+      ...costLines(state),
       `Send it back with notes: \`tells make --resume ${display(out)} --revise product --notes "<what to change>"\``,
       "",
     ].join("\n"),
@@ -607,6 +627,16 @@ export async function run(argv) {
   }
 
   const timeoutFor = (kind) => (minutes ?? MINUTES[kind]) * 60_000;
+  // Every agent's stream is kept under agents/, by stage, for the cost lines and scripts/make-timeline.mjs.
+  let warnedSignIn = false;
+  const agentRun = async (label, opts) => {
+    const r = await runAgent({ ...opts, stream: path.join(out, "agents", `${label}.jsonl`) });
+    if (r.signInEnds && !warnedSignIn && Date.parse(r.signInEnds) - Date.now() < 36 * 3600_000) {
+      warnedSignIn = true;
+      say(paint.yellow(`  Claude Code's sign-in ends ${r.signInEnds.slice(0, 16).replace("T", " ")} UTC. For long unattended runs, use \`claude setup-token\`.`));
+    }
+    return r;
+  };
 
   // ---- 0. Taken in with --from: baseline everything, then one agent writes it down, changing nothing --------
   if (state.stage === "ingest") {
@@ -646,7 +676,7 @@ export async function run(argv) {
       say(`  ${paint.dim(state.baseline.line)}`);
     }
     say(`${paint.bold("Describing")} the product: SYSTEM, CONTRACTS, APPROVED and PRODUCT, changing nothing`);
-    const r = await runAgent({ dir: product, prompt, agent, model, timeoutMs: timeoutFor("ingest") });
+    const r = await agentRun("ingest", { dir: product, prompt, agent, model, timeoutMs: timeoutFor("ingest") });
     say(`  ${r.ok ? paint.green("described") : paint.yellow(r.error)}  ${r.seconds}s`);
     // Anything but the four documents goes back to how it came.
     const reverted = restoreExcept(product, path.join(out, "rounds", "0"), (f) => INGEST_DOCS.includes(f) || f === "agent.log");
@@ -689,7 +719,7 @@ export async function run(argv) {
       dirs.map(async (dir, i) => {
         const v = `v${i + 1}`;
         if (state.runs[v]?.ok && fs.existsSync(path.join(dir, "screens", `${state.screens[0].id}.html`))) return;
-        const r = await runAgent({ dir, prompt: texts[i], agent, model, timeoutMs: timeoutFor("system") });
+        const r = await agentRun(`system-${v}`, { dir, prompt: texts[i], agent, model, timeoutMs: timeoutFor("system") });
         state.runs[v] = r;
         save(out, state);
         const made = state.screens.slice(0, 2).every((s) => fs.existsSync(path.join(dir, "screens", `${s.id}.html`)));
@@ -728,7 +758,7 @@ export async function run(argv) {
     const n = (state.revisions ?? []).filter((r) => r.v === v).length + 1;
     fs.writeFileSync(path.join(dir, `REVISE-${n}.md`), prompt);
     say(`${paint.bold("Revising")} ${v} with your notes`);
-    const r = await runAgent({ dir, prompt, agent, model, timeoutMs: timeoutFor("system") });
+    const r = await agentRun(`revise-${v}-${n}`, { dir, prompt, agent, model, timeoutMs: timeoutFor("system") });
     state.revisions = [...(state.revisions ?? []), { v, notes, run: r }];
     save(out, state);
     say(`  ${v}  ${r.ok ? paint.green("revised") : paint.yellow(r.error)}  ${r.seconds}s`);
@@ -767,7 +797,7 @@ export async function run(argv) {
       copyTree(product, work, (name) => name === "work");
       const prompt = screenPrompt(state, s);
       fs.writeFileSync(path.join(work, "PROMPT.md"), prompt);
-      const r = await runAgent({ dir: work, prompt, agent, model, timeoutMs: timeoutFor("screen") });
+      const r = await agentRun(`screen-${s.id}`, { dir: work, prompt, agent, model, timeoutMs: timeoutFor("screen") });
       let got = 0;
       for (const f of owned(s.id)) {
         if (fs.existsSync(path.join(work, f))) {
@@ -821,7 +851,7 @@ export async function run(argv) {
     fs.writeFileSync(path.join(product, "PROMPT.md"), prompt);
     say(`${paint.bold("Review")}  ${paint.dim(line(before))}`);
     if (!state.runs.review?.ok) {
-      const r = await runAgent({ dir: product, prompt, agent, model, timeoutMs: timeoutFor("review") });
+      const r = await agentRun("review", { dir: product, prompt, agent, model, timeoutMs: timeoutFor("review") });
       state.runs.review = r;
       save(out, state);
       if (!r.ok) {
@@ -890,13 +920,13 @@ export async function run(argv) {
     say(paint.yellow(`  changed what the notes didn't ask for: ${guard.blocking.map((v) => v.what).join("; ")}`));
     fs.writeFileSync(path.join(product, "GUARD.md"), guardText(guard, n));
     const again = `${prompt}\n\n## Put these back\n\nYour round changed things the notes didn't ask for (\`GUARD.md\`):\n\n${guard.blocking.map((v) => `- ${v.what}`).join("\n")}\n\nPut each one back as it was. If a note truly needed a token changed, list it under "### Tokens changed" in round ${n} of \`POLISH.md\`, with the note.`;
-    const r2 = await runAgent({ dir: product, prompt: again, agent, model, timeoutMs: timeoutFor("review") });
+    const r2 = await agentRun(`round-${n}-again`, { dir: product, prompt: again, agent, model, timeoutMs: timeoutFor("review") });
     say(`  ${r2.ok ? paint.green("second turn") : paint.yellow(r2.error)}  ${r2.seconds}s`);
     applyDeletions(product);
     quarantineAllow(product, allowBefore);
     guard = runGuard(product, state, n, tokensBefore, allowed, blockTraits);
     fs.rmSync(path.join(product, "GUARD.md"), { force: true });
-    if (!guard.blocking.length) return { guard, turns: 2, seconds: r2.seconds };
+    if (!guard.blocking.length) return { guard, turns: 2, again: r2 };
     restoreExcept(product, path.join(roundDir, "before"), (f) => f === "agent.log");
     fs.writeFileSync(path.join(roundDir, "GUARD.md"), guardText(guard, n));
     say(paint.red(`  still changed: ${guard.blocking.map((v) => v.what).join("; ")}. Put the product back as it was before round ${n}.`));
@@ -959,7 +989,7 @@ export async function run(argv) {
       });
       fs.writeFileSync(path.join(out, `POLISH-PROMPT-${round.n}.md`), carryPrompt);
       say(`${paint.bold("Carrying")} ${source.id}'s layout to ${toIds.join(", ")}, round ${round.n}`);
-      const r1 = await runAgent({ dir: product, prompt: carryPrompt, agent, model, timeoutMs: timeoutFor("review") });
+      const r1 = await agentRun(`round-${round.n}-pattern`, { dir: product, prompt: carryPrompt, agent, model, timeoutMs: timeoutFor("review") });
       say(`  ${"pattern".padEnd(14)} ${r1.ok && fs.existsSync(path.join(product, "PATTERN.md")) ? paint.green("written") : paint.red(r1.error ?? "no PATTERN.md")}  ${r1.seconds}s`);
       if (!fs.existsSync(path.join(product, "PATTERN.md"))) {
         restoreExcept(product, path.join(round.roundDir, "before"), (f) => f === "agent.log");
@@ -974,21 +1004,21 @@ export async function run(argv) {
         const work = path.join(out, "work", `round-${round.n}`, t.id);
         fs.rmSync(work, { recursive: true, force: true });
         copyProduct(product, work);
-        const r = await runAgent({ dir: work, prompt: restructurePrompt(state, t, laid, round.n), agent, model, timeoutMs: timeoutFor("screen") });
+        const r = await agentRun(`round-${round.n}-${t.id}`, { dir: work, prompt: restructurePrompt(state, t, laid, round.n), agent, model, timeoutMs: timeoutFor("screen") });
         for (const f of t.files) if (fs.existsSync(path.join(work, f))) fs.copyFileSync(path.join(work, f), path.join(product, f));
         runs[t.id] = r;
         say(`  ${t.id.padEnd(14)} ${r.ok ? paint.green("laid") : paint.yellow(r.error)}  ${r.seconds}s`);
       });
       // Screens the shell draws share its files, so they go one at a time, in place.
       for (const t of targets.filter((x) => x.inShell)) {
-        const r = await runAgent({ dir: product, prompt: restructurePrompt(state, t, laid, round.n), agent, model, timeoutMs: timeoutFor("screen") });
+        const r = await agentRun(`round-${round.n}-${t.id}`, { dir: product, prompt: restructurePrompt(state, t, laid, round.n), agent, model, timeoutMs: timeoutFor("screen") });
         runs[t.id] = r;
         say(`  ${t.id.padEnd(14)} ${r.ok ? paint.green("laid") : paint.yellow(r.error)}  ${r.seconds}s`);
       }
       const allowed = new Set([source.target, ...targets.map((t) => t.target)]);
       const g = await guardRound(round, allowed, true, carryPrompt);
       if (!g) return;
-      await finishRound(round, { carry: source.id, to: toIds, notes, run: { ok: Object.values(runs).every((r) => r.ok), runs, turns: g.turns } }, [source.id, ...toIds], g.guard);
+      await finishRound(round, { carry: source.id, to: toIds, notes, run: { ok: Object.values(runs).every((r) => r.ok), runs, turns: g.turns }, again: g.again }, [source.id, ...toIds], g.guard);
       return;
     }
 
@@ -1021,7 +1051,7 @@ export async function run(argv) {
         leadArgs: leadsOf(state).map((l) => `--lead ${l}`).join(" "), tells: TELLS,
       });
       fs.writeFileSync(path.join(out, `POLISH-PROMPT-${round.n}-${a.id}.md`), lastPrompt);
-      const r = await runAgent({ dir: product, prompt: lastPrompt, agent, model, timeoutMs: timeoutFor("screen") });
+      const r = await agentRun(`round-${round.n}-${a.id}`, { dir: product, prompt: lastPrompt, agent, model, timeoutMs: timeoutFor("screen") });
       runs[a.id] = r;
       say(`  ${a.id.padEnd(14)} ${r.ok ? paint.green("built") : paint.yellow(r.error)}  ${r.seconds}s`);
     }
@@ -1035,7 +1065,7 @@ export async function run(argv) {
     const missing = adds.filter((a) => !state.manifest.some((x) => x.id === a.id && x.built)).map((a) => a.id);
     for (const a of adds) if (!missing.includes(a.id) && !state.screens.some((x) => x.id === a.id)) state.screens.push(a);
     if (missing.length) say(paint.red(`  not found in the navigation afterwards: ${missing.join(", ")}`));
-    await finishRound(round, { add: adds.map((a) => a.id), notes, run: { ok: Object.values(runs).every((r) => r.ok) && !missing.length, runs, turns: g.turns } }, adds.map((a) => a.id).filter((id) => !missing.includes(id)), g.guard);
+    await finishRound(round, { add: adds.map((a) => a.id), notes, run: { ok: Object.values(runs).every((r) => r.ok) && !missing.length, runs, turns: g.turns }, again: g.again }, adds.map((a) => a.id).filter((id) => !missing.includes(id)), g.guard);
     if (missing.length) process.exitCode = 1;
     return;
   }
@@ -1056,14 +1086,14 @@ export async function run(argv) {
     const prompt = screen ? restructurePrompt(state, screen, notes, n) : polishPrompt(state, notes, n);
     fs.writeFileSync(path.join(out, `POLISH-PROMPT-${n}.md`), prompt);
     say(screen ? `${paint.bold("Restructuring")} ${screen.id} with your notes, round ${n}` : `${paint.bold("Polishing")} the product with your notes, round ${n}`);
-    const r = await runAgent({ dir: product, prompt, agent, model, timeoutMs: timeoutFor("review") });
+    const r = await agentRun(`round-${n}`, { dir: product, prompt, agent, model, timeoutMs: timeoutFor("review") });
     say(`  ${r.ok ? paint.green(screen ? "restructured" : "polished") : paint.yellow(r.error)}  ${r.seconds}s`);
 
     if (guarded) {
       // A one-screen round holds every other screen to how it came; a whole-product round only reports drift.
       const g = await guardRound(round, new Set(screen ? [screen.target] : targetsOf(state)), Boolean(screen), prompt);
       if (!g) return;
-      await finishRound(round, { screen: screen?.id ?? null, notes, run: { ...r, turns: g.turns, seconds: r.seconds + (g.seconds ?? 0) } }, screen ? [screen.id] : state.screens.map((x) => x.id), g.guard);
+      await finishRound(round, { screen: screen?.id ?? null, notes, run: { ...r, turns: g.turns }, again: g.again }, screen ? [screen.id] : state.screens.map((x) => x.id), g.guard);
       return;
     }
 
