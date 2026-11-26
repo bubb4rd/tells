@@ -1,0 +1,6 @@
+:root[data-theme="light"] { --canvas: #F3F2EE; --ink: #1D1B18; --accent: #17703A; }
+:root[data-theme="dark"] { --canvas: #0E0E0D; --ink: #EDEBE4; --accent: #3FBF6A; }
+body { margin: 0; padding: 32px; background: var(--canvas); color: var(--ink); font: 15px/20px system-ui, sans-serif; }
+nav a { margin-right: 16px; color: var(--ink); }
+h1 { font-size: 28px; line-height: 34px; margin: 16px 0; }
+.n { color: var(--accent); font-weight: 600; }

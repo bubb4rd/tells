@@ -4,16 +4,18 @@ You built this product with other agents: a system, then every screen on it, the
 
 **Screens:** {{screens}}
 
+{{approved}}
+
 **Their notes:**
 
 {{notes}}
 
 ## Read first
 
-`SYSTEM.md`, `CONTRACTS.md`, `REVIEW.md`, `{{tells}}/rules/anti-slop.md`, and the whole of every screen:
+{{docs}}, `{{tells}}/rules/anti-slop.md`, and the whole of every screen:
 
 ```sh
-node {{tells}}/bin/tells.mjs measure screens --shots shots --full
+node {{tells}}/bin/tells.mjs measure {{targets}} --shots shots --full
 ```
 
 The `--full` screenshots in `shots/` run past the first screen, where most of what a person notices is: a label running off a chart, a column that wraps on some rows and not others, a word repeated down a list.
@@ -47,11 +49,10 @@ Add a line to `NOTES.jsonl` for each note (create it if it isn't there; keep ear
 ## Last
 
 ```sh
-node {{tells}}/bin/tells.mjs fix .
-node {{tells}}/bin/tells.mjs check . --strict
-node {{tells}}/bin/tells.mjs render screens --strict
-node {{tells}}/bin/tells.mjs consistent screens --lead screens/{{lead1}}.html --lead screens/{{lead2}}.html --strict
-node {{tells}}/bin/tells.mjs click screens --strict
+{{fix}}node {{tells}}/bin/tells.mjs check . --strict
+node {{tells}}/bin/tells.mjs render {{targets}} --strict
+node {{tells}}/bin/tells.mjs consistent {{targets}} {{leadArgs}} --strict
+node {{tells}}/bin/tells.mjs click {{targets}} --strict
 ```
 
 `click` presses every control from a fresh store, the way a person would. Fix every error and warning. Project-wide exceptions in `.tellsrc` (`allow`) aren't yours to grant: `tells make` sets any you write aside for the person to decide. Fix the hit, or keep one with a `tells-ok` comment and a reason. Don't ask anything, and don't wait for approval.

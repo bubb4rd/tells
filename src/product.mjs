@@ -8,7 +8,10 @@
  *   tells make --resume <out> --approve v1      continue from the system you chose
  *   tells make --resume <out>                   pick up a stopped run (failed screens run again)
  *   tells make --resume <out> --revise product --notes "…"   send the built product back with your notes
+ *   tells make --product --from <dir> ["<brief>"] [--approved a,b] [--screens "…"]   take in an approved product
  *
+ * 0. With --from, instead of 1–3: the product is copied, its screens found, its look baselined (screenshots, tokens,
+ *    every check), and one agent writes down what exists without changing it (see src/ingest.mjs).
  * 1. System: each variant designs the whole product's system (tokens, parts, shell, store, one chart language),
  *    one world of sample facts, the shared-state contracts, and the first two screens. Then it stops: a person
  *    looks at the lead screens and approves one system. Taste is decided once, where it matters.
@@ -29,11 +32,12 @@ import { display, makePaint, parseArgs } from "./check.mjs";
 import { resolveReferences } from "./references.mjs";
 import { runAgent } from "./make.mjs";
 import { intFlag } from "./cli.mjs";
+import { copyProduct, discoverScreens, briefFrom, hasDarkTheme, readTokens, restoreExcept, INGEST_DOCS } from "./ingest.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TELLS = path.resolve(HERE, "..");
 const BIN = path.join(TELLS, "bin", "tells.mjs");
-const MINUTES = { system: 50, screen: 35, review: 45 };
+const MINUTES = { system: 50, screen: 35, review: 45, ingest: 30 };
 
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "product";
 const stamp = () => new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 13);
@@ -147,11 +151,12 @@ function copyTree(from, to, skip = () => false) {
 
 /** Checks one product folder: consistent across screens, check and render, as counts and hits. */
 function audit(dir, state) {
-  const leads = state.screens.slice(0, 2).map((s) => `screens/${s.id}.html`).filter((f) => fs.existsSync(path.join(dir, f)));
-  const cons = tells(["consistent", "screens", ...leads.flatMap((l) => ["--lead", l]), "--json"], dir);
+  const targets = targetsOf(state);
+  const leads = leadsOf(state).filter((f) => fs.existsSync(path.join(dir, f.split("#")[0])));
+  const cons = tells(["consistent", ...targets, ...leads.flatMap((l) => ["--lead", l]), "--json"], dir);
   const chk = tells(["check", ".", "--json"], dir);
-  const ren = tells(["render", "screens", "--json", "--widths", "1440,390"], dir);
-  const clk = tells(["click", "screens", "--json"], dir);
+  const ren = tells(["render", ...targets, "--json", "--widths", "1440,390"], dir);
+  const clk = tells(["click", ...targets, "--json"], dir);
   const count = (hits, sev) => (hits ?? []).filter((h) => h.severity === sev).length;
   return {
     consistent: { errors: count(cons.hits, "error"), warnings: count(cons.hits, "warn"), hits: cons.hits ?? [], system: cons.system ?? null, error: cons.error },
@@ -200,11 +205,28 @@ export function polishPrompt(state, notes, round = 1) {
     brief: state.brief,
     screens: screenList(state.screens),
     notes: notes.trim().split("\n").map((l) => `> ${l}`).join("\n"),
-    lead1: state.screens[0].id,
-    lead2: state.screens[1].id,
+    approved: state.origin === "from"
+      ? "**This product was approved before you.** Read `APPROVED.md` and `PRODUCT.md` first, and keep every frozen decision unless a note names it: tokens, typefaces, the chart language, identity, the shell, the layout grid. Build the way `PRODUCT.md` says this product is built."
+      : "",
+    docs: (state.origin === "from" ? ["SYSTEM.md", "APPROVED.md", "PRODUCT.md", "CONTRACTS.md"] : ["SYSTEM.md", "CONTRACTS.md", "REVIEW.md"]).map((d) => `\`${d}\``).join(", "),
+    // fix rewrites approved choices (it swaps pills for a radius), so a product taken in doesn't get a blanket one.
+    fix: state.origin === "from" ? "" : `node ${TELLS}/bin/tells.mjs fix .\n`,
+    targets: targetsOf(state).join(" "),
+    leadArgs: leadsOf(state).map((l) => `--lead ${l}`).join(" "),
     tells: TELLS,
   });
 }
+
+/** What the checks load: the screens' pages, or the built routes of a product taken in with --from. */
+export const targetsOf = (state) => (state.manifest ? state.manifest.filter((s) => s.built).map((s) => s.target) : ["screens"]);
+/** The screens that define the system: the approved ones of a product taken in, else the two leads. */
+export const leadsOf = (state) =>
+  state.manifest
+    ? state.manifest.filter((s) => s.built && (state.leads ?? []).includes(s.id)).map((s) => s.target)
+    : state.screens.slice(0, 2).map((s) => `screens/${s.id}.html`);
+/** The name `tells measure --shots` gives a target's screenshot. */
+export const shotName = (target) => target.replace(/^https?:\/\//, "").replace(/[^\w.-]+/g, "_").slice(-80) + ".png";
+const shotOf = (state, id) => (state.manifest ? shotName(state.manifest.find((s) => s.id === id)?.target ?? id) : `screens_${id}.html.png`);
 
 /**
  * NOTES.jsonl, the ledger: one line for each note a person sent and each thing the agent found on the way, with
@@ -253,7 +275,39 @@ function applyDeletions(product) {
   return removed;
 }
 
+/** A product taken in with --from: what came in, as it came, and each round of notes since. */
+function writeFromReport(out, state) {
+  const rounds = state.polishes ?? [];
+  const shot = (s, theme) => `product/baseline/${theme}/${shotName(s.target)}`;
+  fs.writeFileSync(
+    path.join(out, "REPORT.md"),
+    [
+      `# ${state.brief}`,
+      "",
+      `Taken in from \`${display(state.source)}\`: ${state.manifest.length} screens, ${state.layout === "spa" ? `routes of \`${state.entry}\`` : "one page each"}. The source isn't touched; the copy is [product](product).`,
+      "",
+      `- As it came: ${state.baseline.line}`,
+      ...(state.ingest?.reverted?.length ? [`- Put back after the describing agent changed them: ${state.ingest.reverted.map((r) => `\`${r.file}\` (${r.was})`).join(", ")}`] : []),
+      ...rounds.map((r, i) => `- After your notes, round ${i + 1}: ${r.after}${tallyLine(r.ledger)}${r.run.ok ? "" : ` (agent stopped: ${r.run.error})`}`),
+      "",
+      `| Screen | Job | Approved | As it came${state.baseline.dark ? " | Dark" : ""} |`,
+      `|---|---|---|---${state.baseline.dark ? "|---" : ""}|`,
+      ...state.manifest.map((s) =>
+        s.built
+          ? `| [${s.id}](product/${s.target}) | ${s.job} | ${(state.leads ?? []).includes(s.id) ? "yes" : ""} | ![${s.id}](${shot(s, "light")}) |${state.baseline.dark ? ` ![${s.id} dark](${shot(s, "dark")}) |` : ""}`
+          : `| ${s.id} | ${s.job} | not built yet | |${state.baseline.dark ? " |" : ""}`,
+      ),
+      "",
+      `The product as found: [SYSTEM.md](product/SYSTEM.md), [APPROVED.md](product/APPROVED.md), [PRODUCT.md](product/PRODUCT.md), [CONTRACTS.md](product/CONTRACTS.md).${rounds.length ? " What your notes changed: [POLISH.md](product/POLISH.md), and what kind each was: [NOTES.jsonl](product/NOTES.jsonl)." : ""}`,
+      "",
+      `Send it notes: \`tells make --resume ${display(out)} --revise product --notes "<what to change>"\``,
+      "",
+    ].join("\n"),
+  );
+}
+
 function writeReport(out, state) {
+  if (state.origin === "from") return writeFromReport(out, state);
   const rounds = state.polishes ?? [];
   fs.writeFileSync(
     path.join(out, "REPORT.md"),
@@ -330,6 +384,62 @@ function checkpoint(out, state, variants, { say, paint, only = null }) {
   say(paint.dim(`  or: tells make --resume ${display(out)} --revise ${rows[0].v} --notes "<what to change>"`));
 }
 
+/** One hit, without what moves when the code is edited (check's line numbers), so a baseline hit is known again. */
+export const hitSignature = (tool, h) => [tool, h.rule, h.target ?? h.file ?? "", tool === "check" ? "" : h.detail ?? ""].join(" ");
+
+/**
+ * tells make --product --from <dir>: copy the product (the source is never written to), find its screens, and set
+ * the run up at the ingest stage. The brief is optional: the entry page's <title>, else the folder's name.
+ */
+async function startFrom({ valueOf, positional, flags }) {
+  const fail = (msg) => {
+    console.error(`tells make --from: ${msg}`);
+    process.exit(2);
+  };
+  const source = path.resolve(valueOf("from"));
+  if (!fs.existsSync(source) || !fs.statSync(source).isDirectory()) fail(`${display(source)} isn't a folder.`);
+  let found;
+  try {
+    found = await discoverScreens(source);
+  } catch (err) {
+    fail(err.message);
+  }
+  const manifest = found.screens;
+  const values = new Set([valueOf("from"), valueOf("screens"), valueOf("out"), valueOf("agent"), valueOf("model"), valueOf("timeout"), valueOf("approved")].filter(Boolean));
+  const brief = positional.filter((p) => !values.has(p)).join(" ").trim() || briefFrom(source, found.entry);
+  let screens = manifest.filter((s) => s.built).map(({ id, job }) => ({ id, job }));
+  if (valueOf("screens")) {
+    let listed = [];
+    try {
+      listed = parseScreens(valueOf("screens"));
+    } catch (err) {
+      fail(err.message);
+    }
+    const unknown = listed.filter((l) => !manifest.some((m) => m.id === l.id));
+    if (unknown.length) fail(`no screen called ${unknown.map((u) => `"${u.id}"`).join(", ")} in ${display(source)}. It has: ${manifest.map((m) => m.id).join(", ")}.`);
+    for (const l of listed) manifest.find((m) => m.id === l.id).job = l.job;
+    screens = listed;
+  }
+  const leads = valueOf("approved") ? valueOf("approved").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean) : screens.map((s) => s.id);
+  const notThere = leads.filter((id) => !manifest.some((m) => m.id === id && m.built));
+  if (notThere.length) fail(`--approved names ${notThere.map((x) => `"${x}"`).join(", ")}, which isn't a built screen. Built: ${manifest.filter((m) => m.built).map((m) => m.id).join(", ")}.`);
+  const out = path.resolve(valueOf("out") ?? path.join("tells-make", `${slug(brief)}-${stamp()}`));
+  if (out === source || out.startsWith(source + path.sep)) fail(`--out can't be inside the product it copies (${display(source)}).`);
+  if (fs.existsSync(path.join(out, "product.json"))) fail(`${display(out)} already holds a run. Continue it with --resume ${display(out)}.`);
+  const product = path.join(out, "product");
+  const skipped = copyProduct(source, product);
+  fs.writeFileSync(path.join(product, "screens.json"), JSON.stringify(manifest, null, 2) + "\n");
+  // The product as it came: what the describing agent's changes are put back to.
+  copyProduct(product, path.join(out, "rounds", "0"));
+  const state = {
+    origin: "from", source, layout: found.layout, entry: found.entry, brief, screens, manifest, leads, skipped,
+    stage: "ingest", approved: null, built: {}, runs: {}, started: new Date().toISOString(),
+  };
+  if (flags["dry-run"]) state.dryRun = true;
+  save(out, state);
+  return { out, state };
+}
+
 function save(out, state) {
   fs.writeFileSync(path.join(out, "product.json"), JSON.stringify(state, null, 2) + "\n");
 }
@@ -360,6 +470,8 @@ export async function run(argv) {
       console.error(`tells make: ${display(out)} has no product.json; is it a --product run?`);
       process.exit(2);
     }
+  } else if (valueOf("from")) {
+    ({ out, state } = await startFrom({ valueOf, positional, flags }));
   } else {
     const values = new Set([valueOf("screens"), valueOf("variants"), valueOf("out"), valueOf("agent"), valueOf("model"), valueOf("timeout"), valueOf("assets"), valueOf("concurrency"), valueOf("notes"), ...many("reference"), ...many("kind")].filter(Boolean));
     const brief = positional.filter((p) => !values.has(p)).join(" ").trim();
@@ -400,6 +512,60 @@ export async function run(argv) {
   }
 
   const timeoutFor = (kind) => (minutes ?? MINUTES[kind]) * 60_000;
+
+  // ---- 0. Taken in with --from: baseline everything, then one agent writes it down, changing nothing --------
+  if (state.stage === "ingest") {
+    const product = path.join(out, "product");
+    const targets = targetsOf(state);
+    const prompt = fill(read("make.ingest.md"), {
+      brief: state.brief,
+      layout: state.layout === "spa" ? `routes of the single-page app \`${state.entry}\`` : "one page each",
+      screens: state.manifest.map((s) => `- \`${s.id}\`: ${s.job}. \`${s.target}\`${s.built ? "" : " (not built yet)"}${s.inShell ? ", drawn by the shell" : s.files.length ? `, files: ${s.files.map((f) => `\`${f}\``).join(", ")}` : ""}`).join("\n"),
+      dark: state.baseline?.dark || hasDarkTheme(product) ? " and `baseline/dark/`" : "",
+      targets: targets.join(" "),
+      tells: TELLS,
+    });
+    fs.writeFileSync(path.join(out, "INGEST-PROMPT.md"), prompt);
+    say(`${paint.bold("tells make --product --from")}  ${state.brief}`);
+    say(paint.dim(`${state.manifest.length} screens (${state.manifest.map((s) => s.id + (s.built ? "" : " (not built)")).join(", ")}), approved: ${(state.leads ?? []).join(", ")}`));
+    if (flags["dry-run"]) {
+      say(`Copied to ${display(product)} and wrote the ingest prompt to ${display(out)}. Run without --dry-run to take it in.`);
+      return;
+    }
+    if (!state.baseline) {
+      say(`${paint.bold("Baseline")}  screenshots, tokens and every check, as it came`);
+      const dark = hasDarkTheme(product);
+      tells(["measure", ...targets, "--shots", "baseline/light", "--full", "--json"], product);
+      if (dark) tells(["measure", ...targets, "--shots", "baseline/dark", "--full", "--theme", "dark", "--json"], product);
+      const a = audit(product, state);
+      state.baseline = {
+        dark,
+        tokens: readTokens(product),
+        system: a.consistent.system,
+        // The client's own hits: only new ones count against a round.
+        hits: ["consistent", "check", "render", "click"].flatMap((tool) => a[tool].hits.map((h) => hitSignature(tool, h))),
+        line: line(a),
+      };
+      save(out, state);
+      say(`  ${paint.dim(state.baseline.line)}`);
+    }
+    say(`${paint.bold("Describing")} the product: SYSTEM, CONTRACTS, APPROVED and PRODUCT, changing nothing`);
+    const r = await runAgent({ dir: product, prompt, agent, model, timeoutMs: timeoutFor("ingest") });
+    say(`  ${r.ok ? paint.green("described") : paint.yellow(r.error)}  ${r.seconds}s`);
+    // Anything but the four documents goes back to how it came.
+    const reverted = restoreExcept(product, path.join(out, "rounds", "0"), (f) => INGEST_DOCS.includes(f) || f === "agent.log");
+    const missing = INGEST_DOCS.filter((f) => !fs.existsSync(path.join(product, f)));
+    state.ingest = { run: r, reverted, missing };
+    if (reverted.length) say(paint.yellow(`  put back: ${reverted.map((x) => `${x.file} (${x.was})`).join(", ")}`));
+    if (missing.length) say(paint.yellow(`  not written: ${missing.join(", ")}`));
+    state.stage = "done";
+    save(out, state);
+    writeReport(out, state);
+    say(`${paint.bold("Taken in.")} ${display(path.join(out, "REPORT.md"))}`);
+    say(paint.dim(`Send it notes: tells make --resume ${display(out)} --revise product --notes "<what to change>"`));
+    if (!r.ok || missing.length) process.exitCode = 1;
+    return;
+  }
 
   // ---- 1. System -------------------------------------------------------------------------------------------
   if (state.stage === "system") {
@@ -603,14 +769,14 @@ export async function run(argv) {
     const removed = applyDeletions(product);
     const setAside = quarantineAllow(product);
     if (setAside) state.proposed = { ...(state.proposed ?? {}), [`polish-${n}`]: setAside };
-    tells(["measure", "screens", "--shots", "shots", "--json"], product);
+    tells(["measure", ...targetsOf(state), "--shots", "shots", "--json"], product);
     const after = audit(product, state);
     const ledger = tallyNotes(readLedger(path.join(product, "NOTES.jsonl")), n);
     state.polishes = [...(state.polishes ?? []), { notes, run: r, deleted: removed, after: line(after), ledger, at: new Date().toISOString() }];
     save(out, state);
     writeReport(out, state);
     say(`${paint.bold("Done")}  ${paint.dim(line(after) + tallyLine(ledger))}`);
-    for (const s of state.screens) say(`  ${display(path.join(product, "shots", `screens_${s.id}.html.png`))}`);
+    for (const s of state.screens) say(`  ${display(path.join(product, "shots", shotOf(state, s.id)))}`);
     if (setAside) say(paint.yellow(`  set aside: allow ${Object.keys(setAside).join(", ")} (product/.tellsrc.proposed)`));
     say(paint.dim(`What changed: ${display(path.join(product, "POLISH.md"))}. Again: tells make --resume ${display(out)} --revise product --notes "<what to change>"`));
     if (!r.ok || after.consistent.errors || after.check.errors || after.render.errors || after.click?.errors) process.exitCode = 1;

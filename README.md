@@ -101,6 +101,8 @@ tells rules      [set]              List every rule with its fix; sets: check, r
 --variants <n>  make: how many to build (default 4, or 2 with --product)
 --out <dir>     make: where the run goes (default tells-make/<brief>-<time>)
 --product       make: several screens on one system; stops for you to approve the system (with --screens)
+--from <dir>    make --product: take in a product that already exists, as approved, instead of building one
+--approved <s>  make --product: with --from: the screens whose look was signed off, a,b,c (default: all)
 --screens <s>   make --product: "<id>: <job>; <id>: <job>; …", the first two are the lead screens
 --resume <out>  make: continue a --product run; --approve <v> picks its system
 --approve <v>   make --resume: the system variant to build the screens on
@@ -245,6 +247,15 @@ tells make --resume tells-make/<run> --approve v1
 5. **Your notes.** Once it's built, use it, then send it back: `--resume <run> --revise product --notes "<what to change>"` (or a notes file). One agent takes each note to its cause, usually a part of the system, so every screen gets the fix, looks for more of the same kind, and writes it into `SYSTEM.md`. Every check runs again, and `REPORT.md` and `product/POLISH.md` gain a round. Repeat as often as you like. Each note also goes into `product/NOTES.jsonl`, the ledger: a defect (something you shouldn't have had to point out) or a decision (a call only you could make), with a tag for the kind of thing and the tells rule that flags it, if one does. `npm run notes -- <ledgers…>` adds them up across products, round by round. Defects should fall as tells learns, and a kind that comes back in a second product with no rule is the next rule to write. `docs/notes-ledger.jsonl` holds the notes from the roaster and Dame Hub so far.
 
 A run stopped by a limit resumes with `--resume <run>`: finished screens are kept and failed ones run again.
+
+**A product that already exists.** Once a client has approved a product, a fresh run throws their decisions away. `--from` takes it in instead:
+
+```sh
+tells make --from ~/Desktop/hub --approved home,releases     # the brief comes from its <title> if you don't give one
+tells make --resume tells-make/<run> --revise product --notes "<what to change>"
+```
+
+It copies the product to `<run>/product`; the source is never written to, and scratch copies (`*.bak`) are left out. It finds the screens (one per page, or one per route of a single-page app, rendered from its navigation, with a route that falls back to the default marked not built) and writes them to `screens.json`. Then it records the product as it came: screenshots of every screen in `baseline/light/` (and `baseline/dark/` when it has a dark theme), its CSS tokens, and every check's hits, which are the client's and don't count against later rounds. One agent describes it without changing anything: `SYSTEM.md` (what exists, measured), `CONTRACTS.md`, `APPROVED.md` (each decision, frozen or open) and `PRODUCT.md` (how a screen is built here). Any other file it touches is put back and listed in `REPORT.md`. Notes rounds read `APPROVED.md` first and skip the blanket `fix`, which would rewrite approved choices.
 
 `tells consistent <screens…>` is the check behind step 4, and it works on its own. Inside one product, sameness is the point, so it renders every screen and flags the one whose typeface, heading sizes, page colour, panel, shell or accent differ from the system: what most screens share, or what the screens named with `--lead` share. Routes of a single-page app work as `index.html#/inbox`, here and in `render`, `measure` and `click`. On one ten-screen product, it failed the six pages built as separate briefs (two page colours, two panel surfaces and two h1 sizes, though every page shared the typeface) and passed the version built on one shared library.
 

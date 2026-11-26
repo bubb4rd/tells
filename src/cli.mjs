@@ -103,6 +103,8 @@ export const FLAGS = [
   { name: "out", arg: "<dir>", text: "where the run goes (default tells-make/<brief>-<time>)", cmds: ["make"] },
   { name: "dry-run", text: "write the prompts, build nothing", cmds: ["make"], scope: "make", global: false },
   { name: "product", text: "several screens on one system; stops for you to approve the system (with --screens)", cmds: ["make"] },
+  { name: "from", arg: "<dir>", text: "take in a product that already exists, as approved, instead of building one", cmds: ["make"], scope: "make --product" },
+  { name: "approved", arg: "<s>", text: "with --from: the screens whose look was signed off, a,b,c (default: all)", cmds: ["make"], scope: "make --product" },
   { name: "screens", arg: "<s>", text: '"<id>: <job>; <id>: <job>; …", the first two are the lead screens', cmds: ["make"], scope: "make --product" },
   { name: "resume", arg: "<out>", text: "continue a --product run; --approve <v> picks its system", cmds: ["make"] },
   { name: "approve", arg: "<v>", text: "the system variant to build the screens on", cmds: ["make"], scope: "make --resume" },
