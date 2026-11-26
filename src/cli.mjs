@@ -192,7 +192,8 @@ export function checkInputs(cmd, positional, values = []) {
       if (kind !== "pages" && !fromFlag) throw usage(`${inp} is a URL, and tells ${cmd} reads source files. For a live page: tells render ${inp}`);
       continue;
     }
-    const file = cmd === "consistent" && inp.includes("#") ? inp.slice(0, inp.indexOf("#")) : inp;
+    // A route of a single-page app (index.html#/inbox) is its file, for every command that loads pages.
+    const file = (kind === "pages" || cmd === "click") && inp.includes("#") ? inp.slice(0, inp.indexOf("#")) : inp;
     if (IMAGE.test(file)) {
       throw usage(
         `${inp} is an image. tells checks code and rendered pages, not screenshots: point it at the HTML or the URL the screenshot shows.\n` +

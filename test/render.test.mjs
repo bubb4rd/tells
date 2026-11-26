@@ -98,3 +98,11 @@ test("squashed-block reports the column once, with the window height it starts a
   assert.match(hits[0].where, /brand/);
   assert.match(hits[0].detail, /64px tall, squashed to \d+px in a 500px-high window.*starts below about 5\d\dpx/);
 });
+
+test("render audits each route of a single-page app as its own page", { skip }, () => {
+  const page = path.join(here, "fixtures", "spa", "index.html");
+  const a = render(`${page}#/a`).out;
+  const b = render(`${page}#/b`).out;
+  assert.ok(!a.hits.some((h) => h.rule === "low-contrast"), a.hits.map((h) => h.rule).join(", "));
+  assert.ok(b.hits.some((h) => h.rule === "low-contrast" && h.target.endsWith("index.html#/b")), b.hits.map((h) => `${h.target} ${h.rule}`).join(", "));
+});

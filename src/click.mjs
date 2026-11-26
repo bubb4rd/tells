@@ -17,7 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { display, makePaint } from "./check.mjs";
-import { CdpBrowser, emulateTheme, findChrome, navigate, startServer, serveRootFor, fileToUrl, themeOf } from "./cdp.mjs";
+import { CdpBrowser, emulateTheme, findChrome, navigate, startServer, serveRootFor, fileToUrl, themeOf, splitRoute } from "./cdp.mjs";
 import { configFor } from "./config.mjs";
 
 export const RULES = [
@@ -72,10 +72,14 @@ const DESCRIBE = `${CONTROLS}.map((el) => ({
 const SNAP = `(() => { let ls = ''; try { ls = Object.keys(localStorage).sort().map((k) => k + '=' + localStorage[k]).join('|') + Object.keys(sessionStorage).sort().map((k) => k + '=' + sessionStorage[k]).join('|'); } catch {} return [location.href, document.body ? document.body.innerHTML : '', ls, document.querySelectorAll('dialog[open]').length].join('\\u0000'); })()`;
 const LINKS = `[...document.querySelectorAll('a[href]')].map((a) => ({ href: a.getAttribute('href'), url: a.href, label: (a.innerText || a.getAttribute('aria-label') || '').trim().replace(/\\s+/g, ' ').slice(0, 48) }))`;
 
-/** Press every control on each page. Returns [{target, file, controls, hits: [{rule, detail, ok?}]}]. */
-export async function clickPages(files, { theme = "light" } = {}) {
+/**
+ * Press every control on each page. A page is a file, or a route of a single-page app (`index.html#/inbox`).
+ * Returns [{target, file, controls, hits: [{rule, detail, ok?}]}].
+ */
+export async function clickPages(pages, { theme = "light" } = {}) {
   const chrome = findChrome();
-  const root = serveRootFor(files);
+  const routes = pages.map((p) => splitRoute(p));
+  const root = serveRootFor(routes.map((r) => r.file));
   const { server, baseUrl } = await startServer(root);
   const b = new CdpBrowser(chrome);
   b.start();
@@ -98,13 +102,16 @@ export async function clickPages(files, { theme = "light" } = {}) {
       await navigate(b, s, url, { timeout: 20000 });
       await wait(250);
     };
+    // From a fresh store and a fresh page. Going to the same URL with a #route in it only moves within the page,
+    // so leave it first, or one press's state carries into the next.
     const fresh = async (url) => {
       await ev("try { localStorage.clear(); sessionStorage.clear(); } catch {}");
+      await navigate(b, s, "about:blank");
       await load(url);
     };
 
-    for (const file of files) {
-      const url = fileToUrl(baseUrl, root, file);
+    for (const { file, hash } of routes) {
+      const url = fileToUrl(baseUrl, root, file) + hash;
       const hits = [];
       await load(url);
       thrown = [];
@@ -131,7 +138,10 @@ export async function clickPages(files, { theme = "light" } = {}) {
         thrown = [];
         const before = await ev(SNAP);
         const found = await ev(`(() => { const el = ${CONTROLS}[${i}]; if (!el) return false; el.scrollIntoView({ block: 'center' }); el.click(); return true; })()`);
-        if (!found) continue;
+        if (!found) {
+          pressed--; // gone after a fresh load: not pressed, so not counted
+          continue;
+        }
         await wait(350);
         let after = await ev(SNAP).catch(() => null);
         if (after === before && !c.real) {
@@ -144,7 +154,7 @@ export async function clickPages(files, { theme = "light" } = {}) {
         if (errs.length) hits.push({ rule: "click-error", detail: `"${c.label}": ${errs[0]}` });
         else if (after === before) hits.push({ rule: "dead-control", detail: `"${c.label}"`, ok: c.ok });
       }
-      results.push({ target: display(file), file, controls: pressed, hits });
+      results.push({ target: display(file) + hash, file, controls: pressed, hits });
     }
   } finally {
     await b.close();
@@ -163,7 +173,13 @@ export async function run(argv = process.argv.slice(2)) {
   }
   const positional = argv.filter((a, i) => !a.startsWith("--") && argv[i - 1] !== "--theme");
   const files = [];
-  for (const p of positional.length ? positional : ["."]) htmlFiles(path.resolve(p), files);
+  for (const p of positional.length ? positional : ["."]) {
+    // index.html#/inbox: one route of a single-page app
+    const { file, hash } = splitRoute(p);
+    const found = [];
+    htmlFiles(path.resolve(file), found);
+    files.push(...(hash ? found.slice(0, 1).map((f) => f + hash) : found));
+  }
   if (!files.length) {
     console.error("tells click: no HTML pages found.");
     process.exit(2);

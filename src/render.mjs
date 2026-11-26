@@ -14,7 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { configFor } from "./config.mjs";
-import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR, emulateTheme, themeOf, navigate } from "./cdp.mjs";
+import { CdpBrowser, findChrome, startServer, serveRootFor, fileToUrl, SETTLE_EXPR, emulateTheme, themeOf, navigate, splitRoute } from "./cdp.mjs";
 
 const ROOT = process.cwd();
 const DEFAULT_PATHS = ["."];
@@ -1666,15 +1666,18 @@ export async function run(argv = process.argv.slice(2)) {
     if (/^https?:\/\//i.test(inp)) {
       targets.push({ kind: "url", url: inp, label: inp, widths: explicitWidths || DEFAULT_WIDTHS });
     } else {
+      // index.html#/inbox: one route of a single-page app, audited as its own page
+      const { file, hash } = splitRoute(inp);
       const files = [];
-      walkHtml(path.resolve(ROOT, inp), files);
-      for (const f of files) {
+      walkHtml(path.resolve(ROOT, file), files);
+      for (const f of hash ? files.slice(0, 1) : files) {
         needsServer = true;
-        const rel = display(f);
+        const rel = display(f) + hash;
         const isMobileOnly = /(?:^|[\\/])(?:mobile|m\d+-)/i.test(rel);
         targets.push({
           kind: "file",
           file: f,
+          hash,
           label: rel,
           widths: explicitWidths || (isMobileOnly ? [390] : DEFAULT_WIDTHS),
         });
@@ -1710,7 +1713,7 @@ export async function run(argv = process.argv.slice(2)) {
   try {
     await browser.ready();
     for (const t of targets) {
-      const url = t.kind === "url" ? t.url : fileToUrl(srv.baseUrl, serveRoot, t.file);
+      const url = t.kind === "url" ? t.url : fileToUrl(srv.baseUrl, serveRoot, t.file) + (t.hash ?? "");
       const found = await auditTarget(browser, url, t.label, t.widths, onlyRule, theme);
       // .tellsrc "allow": project-wide exceptions, still reported as allowed
       const allow = t.kind === "file" ? configFor(t.file)?.config.allow ?? {} : {};

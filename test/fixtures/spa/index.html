@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Hub</title>
+<style>
+  body { font: 15px/20px system-ui, sans-serif; color: #1d1b18; background: #ffffff; margin: 0; padding: 32px; }
+  nav a { margin-right: 16px; color: #1d1b18; }
+  h1 { font-size: 28px; line-height: 34px; margin: 16px 0; }
+  .faint { color: #c4c4c4; }
+  button { height: 44px; padding: 0 16px; margin-right: 8px; font: inherit; border: 1px solid #8a877f; border-radius: 4px; background: #fff; color: #1d1b18; cursor: pointer; }
+  button:focus-visible { outline: 2px solid #1d1b18; outline-offset: 2px; }
+</style></head>
+<body>
+<nav aria-label="Main"><a href="#/a">Orders</a><a href="#/b">Roasts</a></nav>
+<main id="view"></main>
+<script>
+  // One page, two routes. Route b's buttons each work once per page load: state kept in memory, not in storage.
+  // A press moves the route, so going back to #/b is a move within the page that keeps the memory, unless it reloads.
+  let started = false;
+  const routes = {
+    a: () => '<h1>Orders</h1><p>Four orders are waiting to be confirmed.</p>',
+    b: () => '<h1>Roasts</h1><p class="faint">Three batches are planned for today.</p>' +
+      '<button type="button" data-start>Start drum 1</button><button type="button" data-start>Start drum 2</button><button type="button" data-start>Start drum 3</button>' +
+      (started ? '<p>A drum is running.</p>' : ''),
+  };
+  function show() {
+    const id = (location.hash.replace(/^#\//, "") || "a").split("/")[0];
+    document.getElementById("view").innerHTML = (routes[id] || routes.a)();
+  }
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("[data-start]") || started) return;
+    started = true;
+    location.hash = "#/b/started"; // opening a drum moves the route, as a row opening its detail would
+    show();
+  });
+  window.addEventListener("hashchange", show);
+  show();
+</script>
+</body></html>

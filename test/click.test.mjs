@@ -41,3 +41,12 @@ test("click reports a page that throws while it loads", { skip }, () => {
   const { out } = click("throws-on-load.html");
   assert.deepEqual(out.hits.map((h) => h.rule), ["script-error"]);
 });
+
+test("click takes routes of a single-page app, and each press starts from a fresh page", { skip }, () => {
+  // Each Start works once per page load, and moves the route. Leftover state would make drums 2 and 3 look dead.
+  const r = spawnSync(process.execPath, [bin, "click", "--json", path.join(here, "fixtures", "spa", "index.html#/b"), path.join(here, "fixtures", "spa", "index.html#/a")], { encoding: "utf8", timeout: 120_000 });
+  const out = JSON.parse(r.stdout);
+  assert.deepEqual(out.hits, []);
+  assert.deepEqual(out.pages.map((p) => [p.target.replace(/^.*fixtures\//, ""), p.controls]), [["spa/index.html#/b", 3], ["spa/index.html#/a", 0]]);
+  assert.equal(r.status, 0);
+});
