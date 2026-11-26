@@ -911,6 +911,10 @@ export async function run(argv) {
     fs.cpSync(path.join(product, "shots"), path.join(round.roundDir, "shots"), { recursive: true });
     const shots = await shotChanges(out, state, round.n);
     fs.writeFileSync(path.join(round.roundDir, "GUARD.md"), guardText({ ...guard, shots }, round.n));
+    // consistent compares screens with the approved ones. When a round changes an approved screen, the screens it
+    // didn't touch now differ from it without having moved: only drift from how a screen came in counts.
+    const drifted = new Set(traitViolations(state.baseline.screens ?? [], after.consistent.screens ?? []).map((v) => v.target));
+    after.consistent.hits = after.consistent.hits.filter((h) => !h.rule.startsWith("drift-") || drifted.has(h.target));
     const counted = { ...after, ...newHits(after, state.baseline.hits, hitSignature) };
     const ledger = tallyNotes(readLedger(path.join(product, "NOTES.jsonl")), round.n);
     state.polishes = [...(state.polishes ?? []), { ...entry, after: `${line(counted)} new since it came in`, ledger, shots, at: new Date().toISOString() }];

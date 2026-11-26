@@ -260,6 +260,20 @@ function inPageMeasure() {
   };
 }
 
+// In the page: when the page itself doesn't scroll, how much the biggest scrolling panel still hides.
+const INNER_SCROLL = `(() => {
+  const doc = document.scrollingElement || document.documentElement;
+  if (doc.scrollHeight > innerHeight + 4) return 0;
+  let extra = 0;
+  for (const el of document.querySelectorAll('body *')) {
+    if (!/(auto|scroll)/.test(getComputedStyle(el).overflowY)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < innerWidth * 0.4 || r.height < innerHeight * 0.4) continue;
+    extra = Math.max(extra, el.scrollHeight - el.clientHeight);
+  }
+  return extra;
+})()`;
+
 function walkHtml(target, out) {
   const stat = fs.statSync(target);
   if (stat.isFile()) {
@@ -314,8 +328,18 @@ export async function measurePages(inputs, { width = 1440, height = 900, shots =
           // A full page shows a landing page's pacing; it stops at 4,000px so a long page stays readable as one image.
           let params = { format: "png" };
           if (fullPage) {
+            // An app shell scrolls inside a panel, not the page: the page is one window tall. Grow the window until
+            // that panel has nothing left to scroll, so the shot shows the whole screen.
+            let tall = height;
+            for (let i = 0; i < 3; i++) {
+              const extra = (await browser.send("Runtime.evaluate", { expression: INNER_SCROLL, returnByValue: true }, sessionId, timeout)).result?.value ?? 0;
+              if (extra < 8 || tall >= 4000) break;
+              tall = Math.min(4000, tall + extra);
+              await browser.send("Emulation.setDeviceMetricsOverride", { width, height: tall, deviceScaleFactor: 1, mobile: width <= 480 }, sessionId);
+              await browser.send("Runtime.evaluate", { expression: SETTLE_EXPR, awaitPromise: true }, sessionId, timeout);
+            }
             const { cssContentSize } = await browser.send("Page.getLayoutMetrics", {}, sessionId, timeout);
-            const h = Math.min(4000, Math.max(height, Math.ceil(cssContentSize?.height ?? height)));
+            const h = Math.min(4000, Math.max(tall, Math.ceil(cssContentSize?.height ?? tall)));
             params = { format: "png", captureBeyondViewport: true, clip: { x: 0, y: 0, width, height: h, scale: 1 } };
           }
           const shot = await browser.send("Page.captureScreenshot", params, sessionId, timeout);
