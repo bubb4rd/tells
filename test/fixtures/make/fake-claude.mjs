@@ -4,6 +4,7 @@
 import fs from "node:fs";
 
 fs.readFileSync(0, "utf8");
+fs.writeFileSync("argv.json", JSON.stringify(process.argv.slice(2)));
 const mode = process.env.FAKE_CLAUDE ?? "";
 const say = (e) => process.stdout.write(JSON.stringify(e) + "\n");
 say({ type: "system", subtype: "init", session_id: "s1", tools: ["Read", "Write", "Bash"] });

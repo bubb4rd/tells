@@ -133,6 +133,9 @@ export function runAgent({ dir, prompt, agent, model, timeoutMs, stream = null, 
           ...command.slice(1),
           "-p", "--no-session-persistence",
           "--output-format", "stream-json", "--verbose",
+          // Only what the agent needs: none of your own hooks, plugins, MCP servers or skills. Each costs tokens
+          // on every turn, and a hook that blocks a tool call costs a turn.
+          "--setting-sources", "project,local", "--strict-mcp-config", "--disable-slash-commands",
           "--allowedTools", "Read,Write,Edit,Glob,Grep,Bash(node:*)",
           "--add-dir", TELLS,
           ...(model ? ["--model", model] : []),
