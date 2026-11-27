@@ -422,6 +422,9 @@ test("the default agent's stream is kept, stamped, and its result says what the 
   const argv = JSON.parse(readFileSync(path.join(dir, "argv.json"), "utf8"));
   for (const flag of ["--strict-mcp-config", "--disable-slash-commands"]) assert.ok(argv.includes(flag), `${flag}: none of the user's MCP servers or skills`);
   assert.equal(argv[argv.indexOf("--setting-sources") + 1], "project,local", "none of the user's own hooks or plugins");
+  const habits = argv[argv.indexOf("--append-system-prompt") + 1];
+  assert.match(habits, /only with Write and Edit/);
+  assert.match(habits, /Don't read tells' source/);
   assert.ok(Date.parse(r.started) <= Date.parse(r.ended));
   const events = readFileSync(stream, "utf8").trim().split("\n").map((l) => JSON.parse(l));
   assert.equal(events.length, 5, "every event, and not the stray line");
