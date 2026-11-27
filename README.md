@@ -120,12 +120,12 @@ tells rules      [set]              List every rule with its fix; sets: check, r
 --no-render     same, pick, make: skip the headless Chrome checks
 --lead <file>   consistent: the approved screens that define the system (repeatable)
 --theme <t>     render, same, measure, consistent, click: light (default) or dark, whatever the machine is set to
---widths a,b,c  render: viewport widths in px (default 1440,960,390)
+--widths a,b,c  render, make: viewport widths in px (default: .tellsrc widths, else 1440,960,390)
 ```
 
 `tells <command> --help` says what a command reads and gives an example.
 
-`check`, `fix`, `render`, `same`, `pick`, `consistent` and `click` exit 1 when errors are left (or warnings, with `--strict`), so they work in CI as they are. Every command exits 2 when it can't run: an unknown flag, a path that doesn't exist, a folder with nothing to check, a page that won't load or answers 4xx or 5xx. A typo in CI fails the build instead of passing on nothing. Files with `mobile` in their path render at 390px only, unless you pass `--widths`.
+`check`, `fix`, `render`, `same`, `pick`, `consistent` and `click` exit 1 when errors are left (or warnings, with `--strict`), so they work in CI as they are. Every command exits 2 when it can't run: an unknown flag, a path that doesn't exist, a folder with nothing to check, a page that won't load or answers 4xx or 5xx. A typo in CI fails the build instead of passing on nothing. Files with `mobile` in their path render at 390px only, unless you pass `--widths` or a `.tellsrc` names `widths`.
 
 tells checks code and rendered pages, not screenshots. To audit what a screenshot shows, point `render` at the page or its URL. A screenshot is a reference: `make --reference shot.png` studies it, `make --current shot.png` redesigns the page it shows, and `refs add shot.png` keeps it in your library.
 
@@ -171,11 +171,12 @@ Facts about the whole project go in a `.tellsrc` (JSON) at its root. The nearest
 ```json
 {
   "shortcuts": ["⌘K", "⌘1", "Cmd+Shift+3"],
-  "allow": { "default-font": "Apfel Grotezk is the licensed brand face" }
+  "allow": { "default-font": "Apfel Grotezk is the licensed brand face" },
+  "widths": [1440, 960]
 }
 ```
 
-`shortcuts` lists the keys the product really binds, so `fake-shortcut` skips them and still flags any other. `allow` accepts a `check` or `render` rule across the project; it needs a reason, and every hit it covers is still listed as allowed, so `pick` still counts it.
+`shortcuts` lists the keys the product really binds, so `fake-shortcut` skips them and still flags any other. `allow` accepts a `check` or `render` rule across the project; it needs a reason, and every hit it covers is still listed as allowed, so `pick` still counts it. `widths` are the viewports the product is built for: `render` checks those when you don't pass `--widths`, so a laptop-only back office isn't held to 390px.
 
 ## Fix
 
@@ -242,9 +243,9 @@ tells make "a coffee roaster's back office" --product --reference plausible \
 tells make --resume tells-make/<run> --approve v1
 ```
 
-1. **System.** Each variant (two by default) builds the whole product's system: tokens, every part, one chart language with the marks each screen's shape needs, a shell drawn by one script, a store shared across pages, one world of sample facts for every screen, the contracts for shared state (`CONTRACTS.md`), the rules for later builders (`SYSTEM.md`), and the first two screens. Then it stops, and `CHECKPOINT.md` shows each variant's lead screens.
+1. **System.** Each variant (two by default) builds the whole product's system: tokens, every part, one chart language with the marks each screen's shape needs, a shell drawn by one script, a store shared across pages, one world of sample facts for every screen, the contracts for shared state (`CONTRACTS.md`), the rules for later builders (`SYSTEM.md`), and the first two screens. Then every check runs on each variant. One that fails its own checks gets one fix round (one agent, the errors only, nothing else changed) and is checked again, so you aren't shown a broken variant; one still failing is marked in `CHECKPOINT.md`, with its errors listed. Then it stops, and `CHECKPOINT.md` shows each variant's lead screens. `--widths 1440,960` says which widths the product is for: it goes into each variant's `.tellsrc`, so the agents and every check agree.
 2. **You approve one.** `--resume <run> --approve <v>`.
-3. **Screens.** One agent per remaining screen, `--concurrency` at a time, each in its own copy of the approved product. Only the files it owns come back; parts it had to build outside the system are written down for the review.
+3. **Screens.** One agent per remaining screen, `--concurrency` at a time, each in its own copy of the approved product, without the lead stage's working notes and screenshots. Only the files it owns come back; parts it had to build outside the system are written down for the review.
 4. **Review.** `tells consistent`, `check`, `render` and `click` across the screens, then one agent folds the needs into the system, fixes drift and walks the contracts. `REPORT.md` has the before and after.
 
 5. **Your notes.** Once it's built, use it, then send it back: `--resume <run> --revise product --notes "<what to change>"` (or a notes file). One agent takes each note to its cause, usually a part of the system, so every screen gets the fix, looks for more of the same kind, and writes it into `SYSTEM.md`. Every check runs again, and `REPORT.md` and `product/POLISH.md` gain a round. Repeat as often as you like. Each note also goes into `product/NOTES.jsonl`, the ledger: a defect (something you shouldn't have had to point out) or a decision (a call only you could make), with a tag for the kind of thing and the tells rule that flags it, if one does. `npm run notes -- <ledgers…>` adds them up across products, round by round. Defects should fall as tells learns, and a kind that comes back in a second product with no rule is the next rule to write. `docs/notes-ledger.jsonl` holds the notes from the roaster and Dame Hub so far.

@@ -3,12 +3,15 @@
  *
  *   {
  *     "shortcuts": ["⌘K", "⌘1", "⇧⌘3", "Ctrl+K"],
- *     "allow": { "default-font": "Apfel Grotezk is the brand face, licensed for the app" }
+ *     "allow": { "default-font": "Apfel Grotezk is the brand face, licensed for the app" },
+ *     "widths": [1440, 960]
  *   }
  *
  * `shortcuts` are keys the product really binds; fake-shortcut skips them and still flags any other.
  * `allow` accepts one rule for every file under the .tellsrc, with a written reason. Each hit it covers
  * is still reported as an allowed exception, so pick still counts it.
+ * `widths` are the viewports the product is built for (a laptop-only back office needn't pass at 390px):
+ * `tells render` uses them when no --widths is given.
  *
  * The nearest .tellsrc above a file applies (JSON, no comments).
  */
@@ -46,10 +49,15 @@ export function configFor(file) {
   return null;
 }
 
+/** A viewport width tells can render: whole px, from 240 to 4096. */
+export const isWidth = (w) => Number.isInteger(w) && w >= 240 && w <= 4096;
+
 function normalize(raw) {
   const shortcuts = Array.isArray(raw.shortcuts) ? raw.shortcuts.map(String) : [];
   const allow = raw.allow && typeof raw.allow === "object" ? Object.fromEntries(Object.entries(raw.allow).map(([k, v]) => [k, typeof v === "string" ? v.trim() : ""])) : {};
-  return { shortcuts: new Set(shortcuts.map(normalizeShortcut)), allow };
+  const widths = Array.isArray(raw.widths) && raw.widths.length && raw.widths.every(isWidth) ? raw.widths : null;
+  const problems = raw.widths !== undefined && !widths ? [`widths must be a list of px from 240 to 4096, like [1440, 960], not ${JSON.stringify(raw.widths)}`] : [];
+  return { shortcuts: new Set(shortcuts.map(normalizeShortcut)), allow, widths, problems };
 }
 
 const MODS = "⌃⌥⇧⌘";
